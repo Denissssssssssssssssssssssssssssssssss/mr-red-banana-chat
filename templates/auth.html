@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>ログイン / 新規登録</title>
+</head>
+<body>
+
+<h2>ログイン</h2>
+<form method="POST" action="/login">
+    ユーザー名: <input type="text" name="username" required><br>
+    パスワード: <input type="password" name="password" required><br>
+    <button type="submit">ログイン</button>
+</form>
+
+<hr>
+
+<h2>新規登録</h2>
+<form method="POST" action="/register">
+    ユーザー名: <input type="text" name="username" required><br>
+    パスワード: <input type="password" name="password" required><br>
+    <button type="submit">登録</button>
+</form>
+
+</body>
+</html>
