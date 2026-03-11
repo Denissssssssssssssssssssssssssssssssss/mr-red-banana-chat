@@ -14,6 +14,7 @@ socketio = SocketIO(app)
 # ======================
 
 def init_db():
+
     conn = sqlite3.connect("chat.db")
     c = conn.cursor()
 
@@ -94,16 +95,20 @@ def register():
     conn = sqlite3.connect("chat.db")
     c = conn.cursor()
 
-    c.execute("SELECT * FROM users WHERE username=?", (username,))
+    c.execute(
+        "SELECT * FROM users WHERE username=?",
+        (username,)
+    )
+
     if c.fetchone():
         conn.close()
-        return "ユーザーは既に存在します"
+        return "そのユーザーは既に存在します"
 
-    hash_pw = generate_password_hash(password)
+    password_hash = generate_password_hash(password)
 
     c.execute(
         "INSERT INTO users VALUES (?,?)",
-        (username, hash_pw)
+        (username, password_hash)
     )
 
     conn.commit()
@@ -151,7 +156,9 @@ def login():
 
 @app.route("/logout")
 def logout():
+
     session.pop("username", None)
+
     return redirect("/")
 
 # ======================
@@ -220,10 +227,17 @@ def join_room_by_id(data):
     conn = sqlite3.connect("chat.db")
     c = conn.cursor()
 
+    # 履歴重複防止
     c.execute(
-        "INSERT INTO room_members(room,username) VALUES (?,?)",
+        "SELECT * FROM room_members WHERE room=? AND username=?",
         (room_id, username)
     )
+
+    if not c.fetchone():
+        c.execute(
+            "INSERT INTO room_members(room,username) VALUES (?,?)",
+            (room_id, username)
+        )
 
     conn.commit()
 
@@ -233,7 +247,6 @@ def join_room_by_id(data):
     })
 
     # メッセージ履歴送信
-
     c.execute(
         "SELECT username,message FROM messages WHERE room=?",
         (room_id,)
@@ -251,7 +264,7 @@ def join_room_by_id(data):
         })
 
 # ======================
-# leave
+# leave room
 # ======================
 
 @socketio.on("leave_room")
@@ -282,7 +295,7 @@ def handle_message(data):
 
     c.execute(
         "INSERT INTO messages(room,username,message) VALUES (?,?,?)",
-        (room,username,message)
+        (room, username, message)
     )
 
     conn.commit()
