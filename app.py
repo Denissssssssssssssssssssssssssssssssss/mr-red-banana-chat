@@ -10,11 +10,10 @@ app.config['SECRET_KEY'] = 'secret!'
 socketio = SocketIO(app)
 
 # ======================
-# SQLite 初期化
+# DB初期化
 # ======================
 
 def init_db():
-
     conn = sqlite3.connect("chat.db")
     c = conn.cursor()
 
@@ -34,13 +33,20 @@ def init_db():
     )
     """)
 
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS room_members(
+        room TEXT,
+        username TEXT
+    )
+    """)
+
     conn.commit()
     conn.close()
 
 init_db()
 
 # ======================
-# メモリ管理
+# メモリ
 # ======================
 
 rooms = {}
@@ -51,10 +57,33 @@ rooms = {}
 
 @app.route("/")
 def index():
+
     if "username" not in session:
         return render_template("auth.html")
-    return render_template("index.html", username=session["username"])
 
+    username = session["username"]
+
+    conn = sqlite3.connect("chat.db")
+    c = conn.cursor()
+
+    c.execute(
+        "SELECT DISTINCT room FROM room_members WHERE username=?",
+        (username,)
+    )
+
+    room_history = c.fetchall()
+
+    conn.close()
+
+    return render_template(
+        "index.html",
+        username=username,
+        room_history=room_history
+    )
+
+# ======================
+# register
+# ======================
 
 @app.route("/register", methods=["POST"])
 def register():
@@ -68,18 +97,25 @@ def register():
     c.execute("SELECT * FROM users WHERE username=?", (username,))
     if c.fetchone():
         conn.close()
-        return "そのユーザーは既に存在します"
+        return "ユーザーは既に存在します"
 
     hash_pw = generate_password_hash(password)
 
-    c.execute("INSERT INTO users VALUES (?,?)", (username, hash_pw))
+    c.execute(
+        "INSERT INTO users VALUES (?,?)",
+        (username, hash_pw)
+    )
 
     conn.commit()
     conn.close()
 
     session["username"] = username
+
     return redirect("/")
 
+# ======================
+# login
+# ======================
 
 @app.route("/login", methods=["POST"])
 def login():
@@ -90,7 +126,11 @@ def login():
     conn = sqlite3.connect("chat.db")
     c = conn.cursor()
 
-    c.execute("SELECT password FROM users WHERE username=?", (username,))
+    c.execute(
+        "SELECT password FROM users WHERE username=?",
+        (username,)
+    )
+
     row = c.fetchone()
 
     conn.close()
@@ -105,6 +145,9 @@ def login():
 
     return redirect("/")
 
+# ======================
+# logout
+# ======================
 
 @app.route("/logout")
 def logout():
@@ -112,23 +155,21 @@ def logout():
     return redirect("/")
 
 # ======================
-# ルーム生成
+# room id
 # ======================
 
 def generate_room_id():
 
     while True:
 
-        room_id = str(random.randint(10000000, 99999999))
+        room_id = str(random.randint(10000000,99999999))
 
         if room_id not in rooms:
-
             rooms[room_id] = []
-
             return room_id
 
 # ======================
-# ルーム作成
+# create room
 # ======================
 
 @socketio.on("create_room")
@@ -142,10 +183,24 @@ def create_room():
 
     join_room(room_id)
 
-    send({"type":"room_created","room":room_id})
+    conn = sqlite3.connect("chat.db")
+    c = conn.cursor()
+
+    c.execute(
+        "INSERT INTO room_members(room,username) VALUES (?,?)",
+        (room_id, username)
+    )
+
+    conn.commit()
+    conn.close()
+
+    send({
+        "type":"room_created",
+        "room":room_id
+    })
 
 # ======================
-# ルーム参加
+# join room
 # ======================
 
 @socketio.on("join_room_by_id")
@@ -162,14 +217,22 @@ def join_room_by_id(data):
 
     join_room(room_id)
 
-    send({"type":"joined","room":room_id})
-
-    # ======================
-    # 過去メッセージ送信
-    # ======================
-
     conn = sqlite3.connect("chat.db")
     c = conn.cursor()
+
+    c.execute(
+        "INSERT INTO room_members(room,username) VALUES (?,?)",
+        (room_id, username)
+    )
+
+    conn.commit()
+
+    send({
+        "type":"joined",
+        "room":room_id
+    })
+
+    # メッセージ履歴送信
 
     c.execute(
         "SELECT username,message FROM messages WHERE room=?",
@@ -188,7 +251,7 @@ def join_room_by_id(data):
         })
 
 # ======================
-# ルーム退出
+# leave
 # ======================
 
 @socketio.on("leave_room")
@@ -200,13 +263,11 @@ def leave(data):
     leave_room(room_id)
 
     if room_id in rooms:
-
         if username in rooms[room_id]:
-
             rooms[room_id].remove(username)
 
 # ======================
-# メッセージ
+# message
 # ======================
 
 @socketio.on("message")
@@ -215,8 +276,6 @@ def handle_message(data):
     room = data["room"]
     message = data["message"]
     username = session["username"]
-
-    # DB保存
 
     conn = sqlite3.connect("chat.db")
     c = conn.cursor()
@@ -237,4 +296,4 @@ def handle_message(data):
 # ======================
 
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=10000)
+    socketio.run(app, debug=True)
