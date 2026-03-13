@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, session
-from flask_socketio import SocketIO, send, join_room, leave_room
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import random
@@ -46,10 +46,6 @@ def init_db():
 
 init_db()
 
-# ======================
-# メモリ
-# ======================
-
 rooms = {}
 
 # ======================
@@ -95,11 +91,7 @@ def register():
     conn = sqlite3.connect("chat.db")
     c = conn.cursor()
 
-    c.execute(
-        "SELECT * FROM users WHERE username=?",
-        (username,)
-    )
-
+    c.execute("SELECT * FROM users WHERE username=?", (username,))
     if c.fetchone():
         conn.close()
         return "そのユーザーは既に存在します"
@@ -137,7 +129,6 @@ def login():
     )
 
     row = c.fetchone()
-
     conn.close()
 
     if not row:
@@ -201,10 +192,7 @@ def create_room():
     conn.commit()
     conn.close()
 
-    send({
-        "type":"room_created",
-        "room":room_id
-    })
+    emit("room_created", {"room":room_id})
 
 # ======================
 # join room
@@ -227,7 +215,6 @@ def join_room_by_id(data):
     conn = sqlite3.connect("chat.db")
     c = conn.cursor()
 
-    # 履歴重複防止
     c.execute(
         "SELECT * FROM room_members WHERE room=? AND username=?",
         (room_id, username)
@@ -241,10 +228,7 @@ def join_room_by_id(data):
 
     conn.commit()
 
-    send({
-        "type":"joined",
-        "room":room_id
-    })
+    emit("joined", {"room":room_id})
 
     # メッセージ履歴送信
     c.execute(
@@ -253,18 +237,17 @@ def join_room_by_id(data):
     )
 
     rows = c.fetchall()
-
     conn.close()
 
     for row in rows:
 
-        send({
+        emit("chat_message",{
             "username":row[0],
             "message":row[1]
         })
 
 # ======================
-# leave room
+# leave
 # ======================
 
 @socketio.on("leave_room")
@@ -301,7 +284,7 @@ def handle_message(data):
     conn.commit()
     conn.close()
 
-    send({
+    emit("chat_message",{
         "username":username,
         "message":message
     }, room=room)
