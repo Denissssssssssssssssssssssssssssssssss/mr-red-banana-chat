@@ -53,7 +53,6 @@
 <script>
 
 var socket = io();
-
 var currentRoom = null;
 
 function createRoom(){
@@ -99,27 +98,23 @@ document.getElementById("msg").value="";
 
 }
 
-socket.on("message",function(data){
-
-if(data.type==="room_created"){
+socket.on("room_created",function(data){
 
 currentRoom=data.room;
 
 enterRoom("作成したルーム ID: "+data.room);
 
-return;
+});
 
-}
-
-if(data.type==="joined"){
+socket.on("joined",function(data){
 
 currentRoom=data.room;
 
 enterRoom("参加中ルーム ID: "+data.room);
 
-return;
+});
 
-}
+socket.on("chat_message",function(data){
 
 var li=document.createElement("li");
 
