@@ -1,10 +1,34 @@
 <!DOCTYPE html>
 <html>
+
 <head>
+
 <meta charset="UTF-8">
 <title>Mr.Red Banana 暇人チャッツ</title>
 
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<style>
+
+body{
+font-family:Arial;
+margin:20px;
+}
+
+#messages{
+height:300px;
+overflow-y:scroll;
+border:1px solid gray;
+padding:10px;
+}
+
+button{
+margin:3px;
+}
+
+</style>
 
 </head>
 
@@ -23,16 +47,23 @@
 <br><br>
 
 <input id="roomInput" placeholder="8桁IDを入力" maxlength="8" inputmode="numeric">
+
 <button onclick="joinRoom()">参加</button>
 
 <h3>あなたのルーム履歴</h3>
 
 <ul>
+
 {% for r in room_history %}
+
 <li onclick="joinHistory('{{ r[0] }}')" style="cursor:pointer;">
-ルームID: {{ r[0] }}
+
+ルームID : {{ r[0] }}
+
 </li>
+
 {% endfor %}
+
 </ul>
 
 </div>
@@ -43,104 +74,208 @@
 
 <button onclick="leaveRoom()">退出</button>
 
+<br><br>
+
 <ul id="messages"></ul>
 
+<br>
+
 <input id="msg" autocomplete="off" placeholder="メッセージ">
+
 <button onclick="sendMessage()">送信</button>
+
+<button onclick="toggleNotify()">通知モード</button>
 
 </div>
 
 <script>
 
-var socket = io();
-var currentRoom = null;
+var socket=io();
+
+var currentRoom=null;
+
+var notifyMode=false;
+
+
+
+function scrollToBottom(){
+
+var messages=document.getElementById("messages");
+
+messages.scrollTop=messages.scrollHeight;
+
+}
+
+
 
 function createRoom(){
-    socket.emit("create_room");
+
+socket.emit("create_room");
+
 }
+
+
 
 function joinRoom(){
 
-    var roomId = document.getElementById("roomInput").value;
+var roomId=document.getElementById("roomInput").value;
 
-    var regex = /^[0-9]{8}$/;
+var regex=/^[0-9]{8}$/;
 
-    if(!regex.test(roomId)){
-        alert("ルームIDは半角数字8桁のみです");
-        return;
-    }
+if(!regex.test(roomId)){
 
-    socket.emit("join_room_by_id",{room:roomId});
+alert("ルームIDは半角数字8桁のみです");
+
+return;
+
 }
+
+socket.emit("join_room_by_id",{room:roomId});
+
+}
+
+
 
 function joinHistory(roomId){
-    socket.emit("join_room_by_id",{room:roomId});
+
+socket.emit("join_room_by_id",{room:roomId});
+
 }
+
+
 
 function leaveRoom(){
 
-    socket.emit("leave_room",{room:currentRoom});
+socket.emit("leave_room",{room:currentRoom});
 
-    currentRoom = null;
+currentRoom=null;
 
-    document.getElementById("chatArea").style.display="none";
-    document.getElementById("homeArea").style.display="block";
+document.getElementById("chatArea").style.display="none";
+
+document.getElementById("homeArea").style.display="block";
+
 }
+
+
 
 function sendMessage(){
 
-    var msg=document.getElementById("msg").value;
+var msg=document.getElementById("msg").value;
 
-    if(msg && currentRoom){
+if(msg && currentRoom){
 
-        socket.emit("message",{room:currentRoom,message:msg});
+socket.emit("message",{room:currentRoom,message:msg});
 
-        document.getElementById("msg").value="";
-    }
+document.getElementById("msg").value="";
+
 }
+
+}
+
+
+
+function toggleNotify(){
+
+notifyMode=!notifyMode;
+
+if(notifyMode){
+
+Notification.requestPermission();
+
+alert("通知モード ON");
+
+}else{
+
+alert("通知モード OFF");
+
+}
+
+}
+
+
 
 socket.on("room_created",function(data){
 
-    currentRoom=data.room;
+currentRoom=data.room;
 
-    enterRoom("作成したルーム ID: "+data.room);
+enterRoom("作成したルーム ID : "+data.room);
+
 });
+
+
 
 socket.on("joined",function(data){
 
-    currentRoom=data.room;
+currentRoom=data.room;
 
-    enterRoom("参加中ルーム ID: "+data.room);
+enterRoom("参加中ルーム ID : "+data.room);
+
 });
+
+
 
 socket.on("chat_message",function(data){
 
-    var li=document.createElement("li");
+var li=document.createElement("li");
 
-    li.textContent=data.username+" : "+data.message;
+li.textContent=data.username+" : "+data.message;
 
-    document.getElementById("messages").appendChild(li);
+var messages=document.getElementById("messages");
+
+messages.appendChild(li);
+
+scrollToBottom();
+
+if(notifyMode && Notification.permission==="granted"){
+
+new Notification("M.R.B",{
+
+body:data.username+" : "+data.message
+
 });
+
+}
+
+});
+
+
 
 function enterRoom(title){
 
-    document.getElementById("homeArea").style.display="none";
-    document.getElementById("chatArea").style.display="block";
+document.getElementById("homeArea").style.display="none";
 
-    document.getElementById("roomTitle").innerText=title;
+document.getElementById("chatArea").style.display="block";
 
-    document.getElementById("messages").innerHTML="";
+document.getElementById("roomTitle").innerText=title;
+
+document.getElementById("messages").innerHTML="";
+
+scrollToBottom();
+
 }
 
-/* 数字以外入力禁止 */
+
 
 document.getElementById("roomInput").addEventListener("input",function(){
 
-    this.value=this.value.replace(/[^0-9]/g,"");
+this.value=this.value.replace(/[^0-9]/g,"");
+
+});
+
+
+
+document.getElementById("msg").addEventListener("keypress",function(e){
+
+if(e.key==="Enter"){
+
+sendMessage();
+
+}
 
 });
 
 </script>
 
 </body>
+
 </html>
