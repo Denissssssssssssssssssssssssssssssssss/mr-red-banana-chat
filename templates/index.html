@@ -3,97 +3,68 @@
 <head>
 <meta charset="UTF-8">
 <title>Mr.Red Banana 暇人チャッツ</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
 <style>
 
-/* ===== 全体 ===== */
-
-body{
-margin:0;
-font-family:Arial, sans-serif;
-background:#f5f5f5;
+/* 全体 */
+body {
+    margin: 0;
+    font-family: sans-serif;
 }
 
-/* ===== ヘッダー ===== */
-
-.header{
-background:#ff4d4d;
-color:white;
-padding:15px;
-font-size:20px;
-display:flex;
-justify-content:space-between;
+/* 背景画像（←これがあなたのデザインそのまま） */
+#homeArea {
+    width: 100vw;
+    height: 100vh;
+    background: url("/static/背景1.svg") no-repeat center center;
+    background-size: cover;
+    position: relative;
 }
 
-/* ===== ホーム ===== */
-
-.room-card{
-background:white;
-margin:10px;
-padding:15px;
-border-radius:10px;
-box-shadow:0 2px 5px rgba(0,0,0,0.2);
-cursor:pointer;
+/* ボタン共通 */
+.btn {
+    position: absolute;
+    padding: 12px 20px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    font-size: 16px;
 }
 
-/* ===== チャット ===== */
-
-#chatArea{
-display:none;
-height:100vh;
-display:flex;
-flex-direction:column;
+/* ルーム作成ボタン（位置はあとで微調整） */
+#createBtn {
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%);
 }
 
-#messages{
-flex:1;
-overflow-y:scroll;
-padding:10px;
+/* 参加入力 */
+#roomInput {
+    position: absolute;
+    top: 55%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 10px;
+    font-size: 16px;
+    width: 200px;
 }
 
-/* メッセージ */
-
-.msg{
-margin:5px;
-padding:10px;
-border-radius:10px;
-max-width:70%;
+/* 参加ボタン */
+#joinBtn {
+    top: 65%;
+    left: 50%;
+    transform: translate(-50%, -50%);
 }
 
-.me{
-background:#dcf8c6;
-margin-left:auto;
-}
-
-.other{
-background:white;
-}
-
-/* 入力欄 */
-
-.input-area{
-display:flex;
-padding:10px;
-background:#eee;
-}
-
-.input-area input{
-flex:1;
-padding:10px;
-border-radius:20px;
-border:none;
-}
-
-.input-area button{
-margin-left:5px;
-padding:10px;
-border:none;
-background:#ff4d4d;
-color:white;
-border-radius:10px;
+/* 履歴 */
+#history {
+    position: absolute;
+    bottom: 50px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
 }
 
 </style>
@@ -102,129 +73,57 @@ border-radius:10px;
 
 <body>
 
-<div class="header">
-<span>🍌 Mr.Red Banana</span>
-<a href="/logout" style="color:white;">ログアウト</a>
-</div>
-
-<!-- ===== ホーム ===== -->
-
 <div id="homeArea">
 
-<button onclick="createRoom()">＋ ルーム作成</button>
+    <button id="createBtn" class="btn" onclick="createRoom()">ルーム作成</button>
 
-<input id="roomInput" placeholder="ID入力" maxlength="8">
+    <input id="roomInput" placeholder="8桁ID" maxlength="8">
 
-<button onclick="joinRoom()">参加</button>
+    <button id="joinBtn" class="btn" onclick="joinRoom()">参加</button>
 
-<h3>ルーム一覧</h3>
-
-{% for r in room_history %}
-
-<div class="room-card" onclick="joinHistory('{{ r[0] }}')">
-ルームID: {{ r[0] }}
-</div>
-
-{% endfor %}
-
-</div>
-
-<!-- ===== チャット ===== -->
-
-<div id="chatArea">
-
-<h3 id="roomTitle"></h3>
-
-<div id="messages"></div>
-
-<div class="input-area">
-<input id="msg" placeholder="メッセージ">
-<button onclick="sendMessage()">送信</button>
-<button onclick="toggleNotify()">🔔</button>
-</div>
+    <div id="history">
+        <h3>履歴</h3>
+        <ul>
+        {% for r in room_history %}
+            <li onclick="joinHistory('{{ r[0] }}')">
+                {{ r[0] }}
+            </li>
+        {% endfor %}
+        </ul>
+    </div>
 
 </div>
 
 <script>
 
-var socket=io();
-var currentRoom=null;
-var username="{{ username }}";
-var notifyMode=false;
+var socket = io();
 
-function scrollToBottom(){
-var m=document.getElementById("messages");
-m.scrollTop=m.scrollHeight;
-}
+/* 数字制限 */
+document.getElementById("roomInput").addEventListener("input", function(){
+    this.value = this.value.replace(/[^0-9]/g, "");
+});
 
+/* ルーム作成 */
 function createRoom(){
-socket.emit("create_room");
+    socket.emit("create_room");
 }
 
+/* 参加 */
 function joinRoom(){
-var roomId=document.getElementById("roomInput").value;
-if(!/^[0-9]{8}$/.test(roomId)){
-alert("8桁数字");
-return;
-}
-socket.emit("join_room_by_id",{room:roomId});
-}
+    var roomId = document.getElementById("roomInput").value;
 
-function joinHistory(r){
-socket.emit("join_room_by_id",{room:r});
+    if(!/^[0-9]{8}$/.test(roomId)){
+        alert("8桁の数字のみ！");
+        return;
+    }
+
+    socket.emit("join_room_by_id",{room:roomId});
 }
 
-function sendMessage(){
-var msg=document.getElementById("msg").value;
-if(msg && currentRoom){
-socket.emit("message",{room:currentRoom,message:msg});
-document.getElementById("msg").value="";
+/* 履歴クリック */
+function joinHistory(roomId){
+    socket.emit("join_room_by_id",{room:roomId});
 }
-}
-
-function toggleNotify(){
-notifyMode=!notifyMode;
-Notification.requestPermission();
-}
-
-socket.on("room_created",(d)=>{
-currentRoom=d.room;
-enterRoom("ルーム "+d.room);
-});
-
-socket.on("joined",(d)=>{
-currentRoom=d.room;
-enterRoom("ルーム "+d.room);
-});
-
-socket.on("chat_message",(d)=>{
-
-var div=document.createElement("div");
-
-div.className="msg "+(d.username===username?"me":"other");
-
-div.textContent=d.username+" : "+d.message;
-
-document.getElementById("messages").appendChild(div);
-
-scrollToBottom();
-
-if(notifyMode && Notification.permission==="granted"){
-new Notification("M.R.B",{body:d.message});
-}
-
-});
-
-function enterRoom(title){
-document.getElementById("homeArea").style.display="none";
-document.getElementById("chatArea").style.display="flex";
-document.getElementById("roomTitle").innerText=title;
-document.getElementById("messages").innerHTML="";
-}
-
-document.getElementById("msg").addEventListener("keypress",function(e){
-if(e.key==="Enter") sendMessage();
-});
 
 </script>
 
