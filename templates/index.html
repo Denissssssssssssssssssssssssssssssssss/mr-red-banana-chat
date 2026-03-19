@@ -17,7 +17,7 @@
 body{
     font-family:Arial;
     margin:20px;
-    background:#000;
+    background:#111;
     color:white;
 }
 
@@ -31,7 +31,7 @@ body{
     z-index:1000;
 }
 
-/* ロゴと被らないように */
+/* ロゴ分の余白 */
 #main{
     margin-top:80px;
 }
@@ -43,8 +43,24 @@ body{
     overflow-y:scroll;
     border:1px solid gray;
     padding:10px;
-    background:#777;
+    background:#333;
     border-radius:10px;
+}
+
+/* メッセージ共通 */
+#messages li{
+    background:#fff;
+    color:white;
+    padding:8px;
+    margin:6px 0;
+    border-radius:8px;
+    list-style:none;
+}
+
+/* 自分のメッセージ */
+#messages li.me{
+    color:#38b48b;
+    font-weight:bold;
 }
 
 /* ===== ボタン ===== */
@@ -221,6 +237,11 @@ socket.on("chat_message",function(data){
     var li=document.createElement("li");
 
     li.textContent=data.username+" : "+data.message;
+
+    /* 自分のメッセージ判定 */
+    if(data.username === "{{ username }}"){
+        li.classList.add("me");
+    }
 
     var messages=document.getElementById("messages");
 
