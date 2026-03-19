@@ -12,16 +12,12 @@
 
 <style>
 
-/* ===== 全体 ===== */
-
 body{
     font-family:Arial;
     margin:20px;
     background:#111;
     color:white;
 }
-
-/* ===== ロゴ ===== */
 
 #logo{
     position:fixed;
@@ -31,12 +27,9 @@ body{
     z-index:1000;
 }
 
-/* ロゴ分余白 */
 #main{
     margin-top:80px;
 }
-
-/* ===== メッセージ欄 ===== */
 
 #messages{
     height:300px;
@@ -47,7 +40,6 @@ body{
     border-radius:10px;
 }
 
-/* メッセージ */
 #messages li{
     background:#555;
     color:white;
@@ -57,25 +49,20 @@ body{
     list-style:none;
 }
 
-/* 自分 */
 #messages li.me{
     color:#38b48b;
     font-weight:bold;
 }
-
-/* ===== ボタン ===== */
 
 button{
     margin:5px;
     padding:8px 12px;
     border:none;
     border-radius:6px;
-    background:#ff4d4d;
+    background:#777;
     color:white;
     cursor:pointer;
 }
-
-/* ===== 入力 ===== */
 
 input{
     padding:8px;
@@ -83,14 +70,29 @@ input{
     border:none;
 }
 
-/* 履歴 */
 .history-item{
     margin:8px 0;
 }
 
+/* メモ欄 */
 .history-item input{
     margin-left:10px;
     width:150px;
+    background:#444;
+    color:white;
+}
+
+/* ✔マーク */
+.check{
+    color:#00c2c7;
+    margin-left:5px;
+    font-weight:bold;
+    opacity:0;
+    transition:0.3s;
+}
+
+.check.show{
+    opacity:1;
 }
 
 </style>
@@ -99,7 +101,6 @@ input{
 
 <body>
 
-<!-- ロゴ -->
 <img id="logo" src="/static/logo.png">
 
 <div id="main">
@@ -109,8 +110,6 @@ input{
 <a href="/logout" style="color:white;">ログアウト</a>
 
 <hr>
-
-<!-- ===== ホーム ===== -->
 
 <div id="homeArea">
 
@@ -135,8 +134,10 @@ input{
     <input 
         value="{{ r[1] or '' }}"
         placeholder="メモ"
-        onchange="saveNote('{{ r[0] }}', this.value)"
+        oninput="saveNote('{{ r[0] }}', this)"
     >
+
+    <span class="check" id="check-{{ r[0] }}">✔</span>
 
     <button onclick="joinHistory('{{ r[0] }}')">参加</button>
 
@@ -147,8 +148,6 @@ input{
 </ul>
 
 </div>
-
-<!-- ===== チャット ===== -->
 
 <div id="chatArea" style="display:none;">
 
@@ -184,7 +183,7 @@ function scrollToBottom(){
     messages.scrollTop=messages.scrollHeight;
 }
 
-/* ルーム作成 */
+/* 作成 */
 function createRoom(){
     socket.emit("create_room");
 }
@@ -203,13 +202,12 @@ function joinRoom(){
     socket.emit("join_room_by_id",{room:roomId});
 }
 
-/* 履歴クリック */
 function joinHistory(roomId){
     socket.emit("join_room_by_id",{room:roomId});
 }
 
-/* メモ保存 */
-function saveNote(roomId, note){
+/* ⭐自動保存＋✔表示 */
+function saveNote(roomId, input){
 
     fetch("/save_note",{
         method:"POST",
@@ -218,8 +216,16 @@ function saveNote(roomId, note){
         },
         body:JSON.stringify({
             room:roomId,
-            note:note
+            note:input.value
         })
+    }).then(()=>{
+        var check=document.getElementById("check-"+roomId);
+
+        check.classList.add("show");
+
+        setTimeout(()=>{
+            check.classList.remove("show");
+        },1500);
     });
 
 }
