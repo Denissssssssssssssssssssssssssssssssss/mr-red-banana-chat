@@ -31,7 +31,7 @@ body{
     z-index:1000;
 }
 
-/* ロゴ分の余白 */
+/* ロゴ分余白 */
 #main{
     margin-top:80px;
 }
@@ -43,13 +43,13 @@ body{
     overflow-y:scroll;
     border:1px solid gray;
     padding:10px;
-    background:#333;
+    background:#222;
     border-radius:10px;
 }
 
-/* メッセージ共通 */
+/* メッセージ */
 #messages li{
-    background:#333;
+    background:#555;
     color:white;
     padding:8px;
     margin:6px 0;
@@ -57,7 +57,7 @@ body{
     list-style:none;
 }
 
-/* 自分のメッセージ */
+/* 自分 */
 #messages li.me{
     color:#38b48b;
     font-weight:bold;
@@ -70,7 +70,7 @@ button{
     padding:8px 12px;
     border:none;
     border-radius:6px;
-    background:#777;
+    background:#ff4d4d;
     color:white;
     cursor:pointer;
 }
@@ -81,6 +81,16 @@ input{
     padding:8px;
     border-radius:6px;
     border:none;
+}
+
+/* 履歴 */
+.history-item{
+    margin:8px 0;
+}
+
+.history-item input{
+    margin-left:10px;
+    width:150px;
 }
 
 </style>
@@ -118,8 +128,18 @@ input{
 
 {% for r in room_history %}
 
-<li onclick="joinHistory('{{ r[0] }}')" style="cursor:pointer;">
-ルームID : {{ r[0] }}
+<li class="history-item">
+
+    ルームID : {{ r[0] }}
+
+    <input 
+        value="{{ r[1] or '' }}"
+        placeholder="メモ"
+        onchange="saveNote('{{ r[0] }}', this.value)"
+    >
+
+    <button onclick="joinHistory('{{ r[0] }}')">参加</button>
+
 </li>
 
 {% endfor %}
@@ -188,6 +208,22 @@ function joinHistory(roomId){
     socket.emit("join_room_by_id",{room:roomId});
 }
 
+/* メモ保存 */
+function saveNote(roomId, note){
+
+    fetch("/save_note",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+            room:roomId,
+            note:note
+        })
+    });
+
+}
+
 /* 退出 */
 function leaveRoom(){
     socket.emit("leave_room",{room:currentRoom});
@@ -210,27 +246,13 @@ function sendMessage(){
 
 /* 通知 */
 function toggleNotify(){
-
-    notifyMode = !notifyMode;
+    notifyMode=!notifyMode;
 
     if(notifyMode){
-
-        if(Notification.permission === "default"){
-            Notification.requestPermission().then(function(permission){
-                if(permission === "granted"){
-                    alert("通知モード ON");
-                }else{
-                    alert("通知が拒否されました");
-                    notifyMode = false;
-                }
-            });
-        }else if(Notification.permission === "granted"){
-            alert("通知モード ON");
-        }else{
-            alert("ブラウザで通知がブロックされています");
-            notifyMode = false;
+        if(Notification.permission==="default"){
+            Notification.requestPermission();
         }
-
+        alert("通知モード ON");
     }else{
         alert("通知モード OFF");
     }
@@ -254,7 +276,6 @@ socket.on("chat_message",function(data){
 
     li.textContent=data.username+" : "+data.message;
 
-    /* 自分のメッセージ判定 */
     if(data.username === "{{ username }}"){
         li.classList.add("me");
     }
