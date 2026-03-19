@@ -1,70 +1,70 @@
 <!DOCTYPE html>
 <html>
+
 <head>
+
 <meta charset="UTF-8">
 <title>Mr.Red Banana 暇人チャッツ</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
 <style>
 
-/* 全体 */
-body {
-    margin: 0;
-    font-family: sans-serif;
+/* ===== 全体 ===== */
+
+body{
+    font-family:Arial;
+    margin:20px;
+    background:#444;
+    color:white;
 }
 
-/* 背景画像（←これがあなたのデザインそのまま） */
-#homeArea {
-    width: 100vw;
-    height: 100vh;
-    background: url("/static/A.svg") no-repeat center center;
-    background-size: cover;
-    position: relative;
+/* ===== ロゴ ===== */
+
+#logo{
+    position:fixed;
+    top:10px;
+    left:10px;
+    width:200px;
+    z-index:1000;
 }
 
-/* ボタン共通 */
-.btn {
-    position: absolute;
-    padding: 12px 20px;
-    border-radius: 10px;
-    border: none;
-    cursor: pointer;
-    font-size: 16px;
+/* ロゴと被らないように */
+#main{
+    margin-top:80px;
 }
 
-/* ルーム作成ボタン（位置はあとで微調整） */
-#createBtn {
-    top: 40%;
-    left: 50%;
-    transform: translate(-50%, -50%);
+/* ===== メッセージ欄 ===== */
+
+#messages{
+    height:300px;
+    overflow-y:scroll;
+    border:1px solid gray;
+    padding:10px;
+    background:#222;
+    border-radius:10px;
 }
 
-/* 参加入力 */
-#roomInput {
-    position: absolute;
-    top: 55%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    padding: 10px;
-    font-size: 16px;
-    width: 200px;
+/* ===== ボタン ===== */
+
+button{
+    margin:5px;
+    padding:8px 12px;
+    border:none;
+    border-radius:6px;
+    background:#ff4d4d;
+    color:white;
+    cursor:pointer;
 }
 
-/* 参加ボタン */
-#joinBtn {
-    top: 65%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-}
+/* ===== 入力 ===== */
 
-/* 履歴 */
-#history {
-    position: absolute;
-    bottom: 50px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: white;
+input{
+    padding:8px;
+    border-radius:6px;
+    border:none;
 }
 
 </style>
@@ -73,35 +73,80 @@ body {
 
 <body>
 
+<!-- ロゴ -->
+<img id="logo" src="/static/logo.png">
+
+<div id="main">
+
+<h2>こんにちは {{ username }} さん</h2>
+
+<a href="/logout" style="color:white;">ログアウト</a>
+
+<hr>
+
+<!-- ===== ホーム ===== -->
+
 <div id="homeArea">
 
-    <button id="createBtn" class="btn" onclick="createRoom()">ルーム作成</button>
+<button onclick="createRoom()">ルーム作成</button>
 
-    <input id="roomInput" placeholder="8桁ID" maxlength="8">
+<br><br>
 
-    <button id="joinBtn" class="btn" onclick="joinRoom()">参加</button>
+<input id="roomInput" placeholder="8桁IDを入力" maxlength="8" inputmode="numeric">
 
-    <div id="history">
-        <h3>履歴</h3>
-        <ul>
-        {% for r in room_history %}
-            <li onclick="joinHistory('{{ r[0] }}')">
-                {{ r[0] }}
-            </li>
-        {% endfor %}
-        </ul>
-    </div>
+<button onclick="joinRoom()">参加</button>
+
+<h3>あなたのルーム履歴</h3>
+
+<ul>
+
+{% for r in room_history %}
+
+<li onclick="joinHistory('{{ r[0] }}')" style="cursor:pointer;">
+ルームID : {{ r[0] }}
+</li>
+
+{% endfor %}
+
+</ul>
+
+</div>
+
+<!-- ===== チャット ===== -->
+
+<div id="chatArea" style="display:none;">
+
+<h3 id="roomTitle"></h3>
+
+<button onclick="leaveRoom()">退出</button>
+
+<br><br>
+
+<ul id="messages"></ul>
+
+<br>
+
+<input id="msg" autocomplete="off" placeholder="メッセージ">
+
+<button onclick="sendMessage()">送信</button>
+
+<button onclick="toggleNotify()">通知モード</button>
+
+</div>
 
 </div>
 
 <script>
 
-var socket = io();
+var socket=io();
+var currentRoom=null;
+var notifyMode=false;
 
-/* 数字制限 */
-document.getElementById("roomInput").addEventListener("input", function(){
-    this.value = this.value.replace(/[^0-9]/g, "");
-});
+/* スクロール */
+function scrollToBottom(){
+    var messages=document.getElementById("messages");
+    messages.scrollTop=messages.scrollHeight;
+}
 
 /* ルーム作成 */
 function createRoom(){
@@ -110,10 +155,12 @@ function createRoom(){
 
 /* 参加 */
 function joinRoom(){
-    var roomId = document.getElementById("roomInput").value;
+    var roomId=document.getElementById("roomInput").value;
 
-    if(!/^[0-9]{8}$/.test(roomId)){
-        alert("8桁の数字のみ！");
+    var regex=/^[0-9]{8}$/;
+
+    if(!regex.test(roomId)){
+        alert("ルームIDは半角数字8桁のみです");
         return;
     }
 
@@ -124,6 +171,94 @@ function joinRoom(){
 function joinHistory(roomId){
     socket.emit("join_room_by_id",{room:roomId});
 }
+
+/* 退出 */
+function leaveRoom(){
+    socket.emit("leave_room",{room:currentRoom});
+
+    currentRoom=null;
+
+    document.getElementById("chatArea").style.display="none";
+    document.getElementById("homeArea").style.display="block";
+}
+
+/* 送信 */
+function sendMessage(){
+    var msg=document.getElementById("msg").value;
+
+    if(msg && currentRoom){
+        socket.emit("message",{room:currentRoom,message:msg});
+        document.getElementById("msg").value="";
+    }
+}
+
+/* 通知 */
+function toggleNotify(){
+    notifyMode=!notifyMode;
+
+    if(notifyMode){
+        Notification.requestPermission();
+        alert("通知モード ON");
+    }else{
+        alert("通知モード OFF");
+    }
+}
+
+/* イベント */
+
+socket.on("room_created",function(data){
+    currentRoom=data.room;
+    enterRoom("作成したルーム ID : "+data.room);
+});
+
+socket.on("joined",function(data){
+    currentRoom=data.room;
+    enterRoom("参加中ルーム ID : "+data.room);
+});
+
+socket.on("chat_message",function(data){
+
+    var li=document.createElement("li");
+
+    li.textContent=data.username+" : "+data.message;
+
+    var messages=document.getElementById("messages");
+
+    messages.appendChild(li);
+
+    scrollToBottom();
+
+    if(notifyMode && Notification.permission==="granted"){
+        new Notification("M.R.B",{
+            body:data.username+" : "+data.message
+        });
+    }
+
+});
+
+/* 入室 */
+function enterRoom(title){
+    document.getElementById("homeArea").style.display="none";
+    document.getElementById("chatArea").style.display="block";
+
+    document.getElementById("roomTitle").innerText=title;
+
+    document.getElementById("messages").innerHTML="";
+
+    scrollToBottom();
+}
+
+/* 数字制限 */
+document.getElementById("roomInput").addEventListener("input",function(){
+    this.value=this.value.replace(/[^0-9]/g,"");
+});
+
+/* Enter送信 */
+document.getElementById("msg").addEventListener("keypress",function(e){
+    if(e.key==="Enter"){
+        sendMessage();
+    }
+});
 
 </script>
 
