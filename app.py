@@ -1,8 +1,9 @@
-from flask import Flask, render_template, request, redirect, session
+from flask import Flask, render_template, request, redirect, session, jsonify
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import generate_password_hash, check_password_hash
 import sqlite3
 import random
+import os
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
@@ -18,6 +19,7 @@ def init_db():
     conn = sqlite3.connect("chat.db")
     c = conn.cursor()
 
+    # ユーザー
     c.execute("""
     CREATE TABLE IF NOT EXISTS users(
         username TEXT PRIMARY KEY,
@@ -25,6 +27,7 @@ def init_db():
     )
     """)
 
+    # メッセージ
     c.execute("""
     CREATE TABLE IF NOT EXISTS messages(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,10 +37,12 @@ def init_db():
     )
     """)
 
+    # ルーム履歴 + メモ
     c.execute("""
     CREATE TABLE IF NOT EXISTS room_members(
         room TEXT,
-        username TEXT
+        username TEXT,
+        note TEXT
     )
     """)
 
@@ -64,7 +69,7 @@ def index():
     c = conn.cursor()
 
     c.execute(
-        "SELECT DISTINCT room FROM room_members WHERE username=?",
+        "SELECT room, note FROM room_members WHERE username=?",
         (username,)
     )
 
@@ -153,6 +158,32 @@ def logout():
     return redirect("/")
 
 # ======================
+# メモ保存
+# ======================
+
+@app.route("/save_note", methods=["POST"])
+def save_note():
+
+    data = request.get_json()
+
+    room = data["room"]
+    note = data["note"]
+    username = session["username"]
+
+    conn = sqlite3.connect("chat.db")
+    c = conn.cursor()
+
+    c.execute(
+        "UPDATE room_members SET note=? WHERE room=? AND username=?",
+        (note, room, username)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status": "ok"})
+
+# ======================
 # room id
 # ======================
 
@@ -185,8 +216,8 @@ def create_room():
     c = conn.cursor()
 
     c.execute(
-        "INSERT INTO room_members(room,username) VALUES (?,?)",
-        (room_id, username)
+        "INSERT INTO room_members(room,username,note) VALUES (?,?,?)",
+        (room_id, username, "")
     )
 
     conn.commit()
@@ -222,8 +253,8 @@ def join_room_by_id(data):
 
     if not c.fetchone():
         c.execute(
-            "INSERT INTO room_members(room,username) VALUES (?,?)",
-            (room_id, username)
+            "INSERT INTO room_members(room,username,note) VALUES (?,?,?)",
+            (room_id, username, "")
         )
 
     conn.commit()
@@ -240,7 +271,6 @@ def join_room_by_id(data):
     conn.close()
 
     for row in rows:
-
         emit("chat_message",{
             "username":row[0],
             "message":row[1]
@@ -290,8 +320,6 @@ def handle_message(data):
     }, room=room)
 
 # ======================
-
-import os
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
