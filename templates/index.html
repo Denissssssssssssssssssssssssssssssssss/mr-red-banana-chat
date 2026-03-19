@@ -210,11 +210,27 @@ function sendMessage(){
 
 /* 通知 */
 function toggleNotify(){
-    notifyMode=!notifyMode;
+
+    notifyMode = !notifyMode;
 
     if(notifyMode){
-        Notification.requestPermission();
-        alert("通知モード ON");
+
+        if(Notification.permission === "default"){
+            Notification.requestPermission().then(function(permission){
+                if(permission === "granted"){
+                    alert("通知モード ON");
+                }else{
+                    alert("通知が拒否されました");
+                    notifyMode = false;
+                }
+            });
+        }else if(Notification.permission === "granted"){
+            alert("通知モード ON");
+        }else{
+            alert("ブラウザで通知がブロックされています");
+            notifyMode = false;
+        }
+
     }else{
         alert("通知モード OFF");
     }
