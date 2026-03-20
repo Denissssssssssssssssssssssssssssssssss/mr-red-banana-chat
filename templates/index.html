@@ -1,67 +1,186 @@
 <!DOCTYPE html>
 <html>
+
 <head>
+
 <meta charset="UTF-8">
 <title>Mr.Red Banana 暇人チャッツ</title>
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
 <style>
-body{font-family:Arial;margin:20px;background:#111;color:white;}
-#main{margin-top:80px;}
-#messages{height:300px;overflow-y:scroll;border:1px solid gray;padding:10px;background:#222;border-radius:10px;}
-#messages li{background:#222;padding:8px;margin:6px 0;border-radius:8px;list-style:none;}
-#messages li.me{color:#38b48b;font-weight:bold;}
-button{margin:5px;padding:8px;border:none;border-radius:6px;background:#777;color:white;}
-input{padding:8px;border-radius:6px;border:none;}
-.history-item input{background:#444;color:white;margin-left:10px;}
-.check{color:#38b48b;margin-left:5px;opacity:0;}
-.check.show{opacity:1;}
-.delete{background:#dc143c;}
+
+body{
+    font-family:Arial;
+    margin:20px;
+    background:#111;
+    color:white;
+}
+
+/* ===== ロゴ ===== */
+#logo{
+    position:fixed;
+    top:10px;
+    left:10px;
+    width:200px;
+    z-index:1000;
+}
+
+/* ロゴ分スペース */
+#main{
+    margin-top:80px;
+}
+
+/* ===== メッセージ ===== */
+#messages{
+    height:300px;
+    overflow-y:scroll;
+    border:1px solid gray;
+    padding:10px;
+    background:#222;
+    border-radius:10px;
+}
+
+#messages li{
+    background:#222;
+    padding:8px;
+    margin:6px 0;
+    border-radius:8px;
+    list-style:none;
+}
+
+#messages li.me{
+    color:#38b48b;
+    font-weight:bold;
+}
+
+/* ===== ボタン ===== */
+button{
+    margin:5px;
+    padding:8px 12px;
+    border:none;
+    border-radius:6px;
+    background:#777;
+    color:white;
+    cursor:pointer;
+}
+
+button.delete{
+    background:#ff0000;
+}
+
+/* ===== 入力 ===== */
+input{
+    padding:8px;
+    border-radius:6px;
+    border:none;
+}
+
+/* ===== 履歴 ===== */
+.history-item{
+    margin:8px 0;
+}
+
+/* メモ欄 */
+.history-item input{
+    margin-left:10px;
+    width:150px;
+    background:#222;
+    color:white;
+}
+
+/* ✔マーク */
+.check{
+    color:#38b48b;
+    margin-left:5px;
+    font-weight:bold;
+    opacity:0;
+    transition:0.3s;
+}
+
+.check.show{
+    opacity:1;
+}
+
 </style>
+
 </head>
 
 <body>
 
+<!-- ⭐ロゴ（これ重要） -->
+<img id="logo" src="/static/logo.png">
+
 <div id="main">
 
 <h2>こんにちは {{ username }} さん</h2>
-<a href="/logout">ログアウト</a>
+
+<a href="/logout" style="color:white;">ログアウト</a>
 
 <hr>
 
+<!-- ===== ホーム ===== -->
 <div id="homeArea">
 
-<button onclick="createRoom()">ルーム作成</button><br><br>
+<button onclick="createRoom()">ルーム作成</button>
 
-<input id="roomInput" placeholder="8桁ID" maxlength="8">
+<br><br>
+
+<input id="roomInput" placeholder="8桁IDを入力" maxlength="8" inputmode="numeric">
+
 <button onclick="joinRoom()">参加</button>
 
-<h3>履歴</h3>
+<h3>あなたのルーム履歴</h3>
 
 <ul>
+
 {% for r in room_history %}
+
 <li class="history-item">
-ルームID : {{ r[0] }}
 
-<input value="{{ r[1] or '' }}" oninput="saveNote('{{ r[0] }}', this)">
+    ルームID : {{ r[0] }}
 
-<span class="check" id="check-{{ r[0] }}">✔</span>
+    <input 
+        value="{{ r[1] or '' }}"
+        placeholder="メモ"
+        oninput="saveNote('{{ r[0] }}', this)"
+    >
 
-<button onclick="joinHistory('{{ r[0] }}')">参加</button>
-<button class="delete" onclick="deleteRoom('{{ r[0] }}')">削除</button>
+    <span class="check" id="check-{{ r[0] }}">✔</span>
+
+    <button onclick="joinHistory('{{ r[0] }}')">参加</button>
+
+    <button class="delete" onclick="deleteRoom('{{ r[0] }}')">削除</button>
+
 </li>
+
 {% endfor %}
+
 </ul>
 
 </div>
 
+<!-- ===== チャット ===== -->
 <div id="chatArea" style="display:none;">
+
 <h3 id="roomTitle"></h3>
+
 <button onclick="leaveRoom()">退出</button>
+
+<br><br>
+
 <ul id="messages"></ul>
-<input id="msg">
+
+<br>
+
+<input id="msg" autocomplete="off" placeholder="メッセージ">
+
 <button onclick="sendMessage()">送信</button>
+
+<button onclick="toggleNotify()">通知モード</button>
+
 </div>
 
 </div>
@@ -70,61 +189,176 @@ input{padding:8px;border-radius:6px;border:none;}
 
 var socket=io();
 var currentRoom=null;
+var notifyMode=false;
 
-function createRoom(){socket.emit("create_room");}
+/* ===== スクロール ===== */
+function scrollToBottom(){
+    var messages=document.getElementById("messages");
+    messages.scrollTop=messages.scrollHeight;
+}
+
+/* ===== ルーム ===== */
+function createRoom(){
+    socket.emit("create_room");
+}
 
 function joinRoom(){
-let id=document.getElementById("roomInput").value;
-if(!/^[0-9]{8}$/.test(id)) return alert("8桁数字");
-socket.emit("join_room_by_id",{room:id});
+    var roomId=document.getElementById("roomInput").value;
+
+    var regex=/^[0-9]{8}$/;
+
+    if(!regex.test(roomId)){
+        alert("ルームIDは半角数字8桁のみです");
+        return;
+    }
+
+    socket.emit("join_room_by_id",{room:roomId});
 }
 
-function joinHistory(id){socket.emit("join_room_by_id",{room:id});}
-
-function saveNote(id,input){
-fetch("/save_note",{method:"POST",headers:{"Content-Type":"application/json"},
-body:JSON.stringify({room:id,note:input.value})})
-.then(()=>{
-let c=document.getElementById("check-"+id);
-c.classList.add("show");
-setTimeout(()=>c.classList.remove("show"),1500);
-});
+function joinHistory(roomId){
+    socket.emit("join_room_by_id",{room:roomId});
 }
 
-function deleteRoom(id){
-if(!confirm("本当にルームID："+id+"を削除しますか？")) return;
-fetch("/delete_room",{method:"POST",headers:{"Content-Type":"application/json"},
-body:JSON.stringify({room:id})})
-.then(()=>location.reload());
+/* ===== メモ保存（自動＋✔） ===== */
+function saveNote(roomId, input){
+
+    fetch("/save_note",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+            room:roomId,
+            note:input.value
+        })
+    }).then(()=>{
+        var check=document.getElementById("check-"+roomId);
+
+        check.classList.add("show");
+
+        setTimeout(()=>{
+            check.classList.remove("show");
+        },1500);
+    });
+
 }
 
+/* ===== 削除 ===== */
+function deleteRoom(roomId){
+
+    var confirmDelete = confirm("本当にルームID：" + roomId + " を削除しますか？");
+
+    if(!confirmDelete){
+        return;
+    }
+
+    fetch("/delete_room",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+            room:roomId
+        })
+    }).then(()=>{
+        location.reload();
+    });
+
+}
+
+/* ===== 退出 ===== */
 function leaveRoom(){
-socket.emit("leave_room",{room:currentRoom});
-location.reload();
+    socket.emit("leave_room",{room:currentRoom});
+
+    currentRoom=null;
+
+    document.getElementById("chatArea").style.display="none";
+    document.getElementById("homeArea").style.display="block";
 }
 
+/* ===== 送信 ===== */
 function sendMessage(){
-let msg=document.getElementById("msg").value;
-if(msg) socket.emit("message",{room:currentRoom,message:msg});
-document.getElementById("msg").value="";
+    var msg=document.getElementById("msg").value;
+
+    if(msg && currentRoom){
+        socket.emit("message",{room:currentRoom,message:msg});
+        document.getElementById("msg").value="";
+    }
 }
 
-socket.on("room_created",d=>{currentRoom=d.room;enter(d.room);});
-socket.on("joined",d=>{currentRoom=d.room;enter(d.room);});
+/* ===== 通知 ===== */
+function toggleNotify(){
+    notifyMode=!notifyMode;
 
-socket.on("chat_message",d=>{
-let li=document.createElement("li");
-li.textContent=d.username+" : "+d.message;
-if(d.username=="{{username}}") li.classList.add("me");
-document.getElementById("messages").appendChild(li);
+    if(notifyMode){
+        if(Notification.permission==="default"){
+            Notification.requestPermission();
+        }
+        alert("通知モード ON");
+    }else{
+        alert("通知モード OFF");
+    }
+}
+
+/* ===== ソケット ===== */
+
+socket.on("room_created",function(data){
+    currentRoom=data.room;
+    enterRoom("作成したルーム ID : "+data.room);
 });
 
-function enter(id){
-homeArea.style.display="none";
-chatArea.style.display="block";
-roomTitle.innerText="ルーム："+id;
-messages.innerHTML="";
+socket.on("joined",function(data){
+    currentRoom=data.room;
+    enterRoom("参加中ルーム ID : "+data.room);
+});
+
+socket.on("chat_message",function(data){
+
+    var li=document.createElement("li");
+
+    li.textContent=data.username+" : "+data.message;
+
+    if(data.username === "{{ username }}"){
+        li.classList.add("me");
+    }
+
+    var messages=document.getElementById("messages");
+
+    messages.appendChild(li);
+
+    scrollToBottom();
+
+    if(notifyMode && Notification.permission==="granted"){
+        new Notification("M.R.B",{
+            body:data.username+" : "+data.message
+        });
+    }
+
+});
+
+/* ===== 入室 ===== */
+function enterRoom(title){
+    document.getElementById("homeArea").style.display="none";
+    document.getElementById("chatArea").style.display="block";
+
+    document.getElementById("roomTitle").innerText=title;
+
+    document.getElementById("messages").innerHTML="";
+
+    scrollToBottom();
 }
+
+/* ===== 入力制限 ===== */
+document.getElementById("roomInput").addEventListener("input",function(){
+    this.value=this.value.replace(/[^0-9]/g,"");
+});
+
+/* Enter送信 */
+document.getElementById("msg").addEventListener("keypress",function(e){
+    if(e.key==="Enter"){
+        sendMessage();
+    }
+});
 
 </script>
 
