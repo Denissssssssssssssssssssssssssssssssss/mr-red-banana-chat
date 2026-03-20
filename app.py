@@ -19,7 +19,6 @@ def init_db():
     conn = sqlite3.connect("chat.db")
     c = conn.cursor()
 
-    # ユーザー
     c.execute("""
     CREATE TABLE IF NOT EXISTS users(
         username TEXT PRIMARY KEY,
@@ -27,7 +26,6 @@ def init_db():
     )
     """)
 
-    # メッセージ
     c.execute("""
     CREATE TABLE IF NOT EXISTS messages(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,7 +35,6 @@ def init_db():
     )
     """)
 
-    # ルーム履歴 + メモ
     c.execute("""
     CREATE TABLE IF NOT EXISTS room_members(
         room TEXT,
@@ -184,13 +181,37 @@ def save_note():
     return jsonify({"status": "ok"})
 
 # ======================
+# 履歴削除
+# ======================
+
+@app.route("/delete_room", methods=["POST"])
+def delete_room():
+
+    data = request.get_json()
+
+    room = data["room"]
+    username = session["username"]
+
+    conn = sqlite3.connect("chat.db")
+    c = conn.cursor()
+
+    c.execute(
+        "DELETE FROM room_members WHERE room=? AND username=?",
+        (room, username)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return jsonify({"status":"ok"})
+
+# ======================
 # room id
 # ======================
 
 def generate_room_id():
 
     while True:
-
         room_id = str(random.randint(10000000,99999999))
 
         if room_id not in rooms:
@@ -261,7 +282,6 @@ def join_room_by_id(data):
 
     emit("joined", {"room":room_id})
 
-    # メッセージ履歴送信
     c.execute(
         "SELECT username,message FROM messages WHERE room=?",
         (room_id,)
