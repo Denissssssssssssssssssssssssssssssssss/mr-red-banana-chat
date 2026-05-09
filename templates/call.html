@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>通話ルーム</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<script src="https://cdn.jsdelivr.net/npm/skyway-js@4.4.4/dist/skyway.min.js"></script>
+
+<style>
+
+body{
+    margin:0;
+    background:#111;
+    color:white;
+    font-family:Arial;
+    text-align:center;
+}
+
+/* ===== 上バー ===== */
+
+#topbar{
+    background:#222;
+    padding:15px;
+}
+
+/* ===== 動画 ===== */
+
+video{
+    width:300px;
+    margin:10px;
+    border-radius:10px;
+    background:black;
+}
+
+#remote-videos{
+    display:flex;
+    flex-wrap:wrap;
+    justify-content:center;
+}
+
+/* ===== ボタン ===== */
+
+button{
+    padding:10px 15px;
+    border:none;
+    border-radius:8px;
+    background:#ff4444;
+    color:white;
+    cursor:pointer;
+    margin-top:10px;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<div id="topbar">
+
+<h2>
+📞 通話ルーム :
+{{ room_id }}
+</h2>
+
+<button onclick="leaveCall()">
+❌ 通話終了
+</button>
+
+</div>
+
+<!-- 自分 -->
+<video
+    id="my-video"
+    autoplay
+    muted
+    playsinline>
+</video>
+
+<!-- 相手 -->
+<div id="remote-videos"></div>
+
+<script>
+
+let localStream;
+let peer;
+let room;
+
+const ROOM_ID = "{{ room_id }}";
+
+/* ===== 通話開始 ===== */
+
+async function startCall(){
+
+    try{
+
+        // カメラ・マイク取得
+        localStream = await navigator.mediaDevices.getUserMedia({
+            video:true,
+            audio:true
+        });
+
+        // 自分映像
+        const myVideo=document.getElementById("my-video");
+
+        myVideo.srcObject=localStream;
+
+        // Peer
+        peer = new Peer({
+
+            // ←ここにSkyWay APIキー
+            key:"ここにSkyWayAPIキー"
+
+        });
+
+        peer.on("open", ()=>{
+
+            // ルーム参加
+            room = peer.joinRoom(ROOM_ID,{
+                mode:"mesh",
+                stream:localStream
+            });
+
+            // 他人映像
+            room.on("stream", stream=>{
+
+                const video=document.createElement("video");
+
+                video.srcObject=stream;
+                video.autoplay=true;
+                video.playsInline=true;
+
+                document
+                    .getElementById("remote-videos")
+                    .appendChild(video);
+
+            });
+
+        });
+
+    }catch(err){
+
+        console.error(err);
+
+        alert("カメラまたはマイクを使用できません");
+
+    }
+
+}
+
+/* ===== 通話終了 ===== */
+
+function leaveCall(){
+
+    if(room){
+        room.close();
+    }
+
+    if(localStream){
+
+        localStream.getTracks().forEach(track=>{
+            track.stop();
+        });
+
+    }
+
+    window.close();
+}
+
+/* ===== 自動開始 ===== */
+
+startCall();
+
+</script>
+
+</body>
+</html>
