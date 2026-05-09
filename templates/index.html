@@ -10,6 +10,9 @@
 
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
+<!-- SkyWay -->
+<script src="https://cdn.jsdelivr.net/npm/skyway-js@4.4.4/dist/skyway.min.js"></script>
+
 <style>
 
 body{
@@ -104,13 +107,30 @@ input{
     opacity:1;
 }
 
+/* ===== ビデオ ===== */
+
+#video-area{
+    margin-top:20px;
+}
+
+video{
+    background:black;
+    border-radius:10px;
+    margin:5px;
+}
+
+#remote-videos{
+    display:flex;
+    flex-wrap:wrap;
+}
+
 </style>
 
 </head>
 
 <body>
 
-<!-- ⭐ロゴ（これ重要） -->
+<!-- ロゴ -->
 <img id="logo" src="/static/logo.png">
 
 <div id="main">
@@ -181,6 +201,28 @@ input{
 
 <button onclick="toggleNotify()">通知モード</button>
 
+<!-- ===== ビデオ通話 ===== -->
+
+<div id="video-area">
+
+<hr>
+
+<h3>ビデオ通話</h3>
+
+<!-- 自分 -->
+<video
+    id="my-video"
+    autoplay
+    muted
+    playsinline
+    width="250">
+</video>
+
+<!-- 相手 -->
+<div id="remote-videos"></div>
+
+</div>
+
 </div>
 
 </div>
@@ -191,6 +233,10 @@ var socket=io();
 var currentRoom=null;
 var notifyMode=false;
 
+var peer=null;
+var localStream=null;
+var room=null;
+
 /* ===== スクロール ===== */
 function scrollToBottom(){
     var messages=document.getElementById("messages");
@@ -198,11 +244,13 @@ function scrollToBottom(){
 }
 
 /* ===== ルーム ===== */
+
 function createRoom(){
     socket.emit("create_room");
 }
 
 function joinRoom(){
+
     var roomId=document.getElementById("roomInput").value;
 
     var regex=/^[0-9]{8}$/;
@@ -219,7 +267,8 @@ function joinHistory(roomId){
     socket.emit("join_room_by_id",{room:roomId});
 }
 
-/* ===== メモ保存（自動＋✔） ===== */
+/* ===== メモ保存 ===== */
+
 function saveNote(roomId, input){
 
     fetch("/save_note",{
@@ -232,6 +281,7 @@ function saveNote(roomId, input){
             note:input.value
         })
     }).then(()=>{
+
         var check=document.getElementById("check-"+roomId);
 
         check.classList.add("show");
@@ -239,14 +289,18 @@ function saveNote(roomId, input){
         setTimeout(()=>{
             check.classList.remove("show");
         },1500);
+
     });
 
 }
 
 /* ===== 削除 ===== */
+
 function deleteRoom(roomId){
 
-    var confirmDelete = confirm("本当にルームID：" + roomId + " を削除しますか？");
+    var confirmDelete = confirm(
+        "本当にルームID：" + roomId + " を削除しますか？"
+    );
 
     if(!confirmDelete){
         return;
@@ -267,8 +321,26 @@ function deleteRoom(roomId){
 }
 
 /* ===== 退出 ===== */
+
 function leaveRoom(){
+
     socket.emit("leave_room",{room:currentRoom});
+
+    // SkyWay退出
+    if(room){
+        room.close();
+        room = null;
+    }
+
+    // カメラ停止
+    if(localStream){
+        localStream.getTracks().forEach(track=>{
+            track.stop();
+        });
+    }
+
+    // 相手映像削除
+    document.getElementById("remote-videos").innerHTML="";
 
     currentRoom=null;
 
@@ -277,39 +349,125 @@ function leaveRoom(){
 }
 
 /* ===== 送信 ===== */
+
 function sendMessage(){
+
     var msg=document.getElementById("msg").value;
 
     if(msg && currentRoom){
-        socket.emit("message",{room:currentRoom,message:msg});
+
+        socket.emit("message",{
+            room:currentRoom,
+            message:msg
+        });
+
         document.getElementById("msg").value="";
     }
+
 }
 
 /* ===== 通知 ===== */
+
 function toggleNotify(){
+
     notifyMode=!notifyMode;
 
     if(notifyMode){
+
         if(Notification.permission==="default"){
             Notification.requestPermission();
         }
+
         alert("通知モード ON");
+
     }else{
+
         alert("通知モード OFF");
+
     }
+
+}
+
+/* ===== ビデオ通話 ===== */
+
+async function joinVideoRoom(roomId){
+
+    try{
+
+        // カメラ・マイク取得
+        localStream = await navigator.mediaDevices.getUserMedia({
+            video:true,
+            audio:true
+        });
+
+        // 自分映像
+        const myVideo=document.getElementById("my-video");
+        myVideo.srcObject=localStream;
+
+        // Peer作成
+        peer = new Peer({
+
+            // ←ここを自分のSkyWay APIキーに変更
+            key:"ここにSkyWayAPIキー"
+
+        });
+
+        peer.on("open", ()=>{
+
+            // ルーム参加
+            room = peer.joinRoom(roomId,{
+                mode:"mesh",
+                stream:localStream
+            });
+
+            // 相手参加
+            room.on("stream", stream=>{
+
+                const video=document.createElement("video");
+
+                video.srcObject=stream;
+                video.autoplay=true;
+                video.playsInline=true;
+                video.width=250;
+
+                document
+                    .getElementById("remote-videos")
+                    .appendChild(video);
+
+            });
+
+        });
+
+    }catch(err){
+
+        console.error(err);
+
+        alert("カメラまたはマイクに接続できません");
+
+    }
+
 }
 
 /* ===== ソケット ===== */
 
 socket.on("room_created",function(data){
+
     currentRoom=data.room;
+
     enterRoom("作成したルーム ID : "+data.room);
+
+    joinVideoRoom(data.room);
+
 });
 
 socket.on("joined",function(data){
+
     currentRoom=data.room;
+
     enterRoom("参加中ルーム ID : "+data.room);
+
+    joinVideoRoom(data.room);
+
 });
 
 socket.on("chat_message",function(data){
@@ -329,15 +487,19 @@ socket.on("chat_message",function(data){
     scrollToBottom();
 
     if(notifyMode && Notification.permission==="granted"){
+
         new Notification("M.R.B",{
             body:data.username+" : "+data.message
         });
+
     }
 
 });
 
 /* ===== 入室 ===== */
+
 function enterRoom(title){
+
     document.getElementById("homeArea").style.display="none";
     document.getElementById("chatArea").style.display="block";
 
@@ -349,15 +511,21 @@ function enterRoom(title){
 }
 
 /* ===== 入力制限 ===== */
+
 document.getElementById("roomInput").addEventListener("input",function(){
+
     this.value=this.value.replace(/[^0-9]/g,"");
+
 });
 
-/* Enter送信 */
+/* ===== Enter送信 ===== */
+
 document.getElementById("msg").addEventListener("keypress",function(e){
+
     if(e.key==="Enter"){
         sendMessage();
     }
+
 });
 
 </script>
