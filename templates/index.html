@@ -10,9 +10,6 @@
 
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
-<!-- SkyWay -->
-<script src="https://cdn.jsdelivr.net/npm/skyway-js@4.4.4/dist/skyway.min.js"></script>
-
 <style>
 
 body{
@@ -74,6 +71,11 @@ button.delete{
     background:#ff0000;
 }
 
+/* 通話ボタン */
+button.call{
+    background:#38b48b;
+}
+
 /* ===== 入力 ===== */
 input{
     padding:8px;
@@ -105,23 +107,6 @@ input{
 
 .check.show{
     opacity:1;
-}
-
-/* ===== ビデオ ===== */
-
-#video-area{
-    margin-top:20px;
-}
-
-video{
-    background:black;
-    border-radius:10px;
-    margin:5px;
-}
-
-#remote-videos{
-    display:flex;
-    flex-wrap:wrap;
 }
 
 </style>
@@ -189,6 +174,11 @@ video{
 
 <button onclick="leaveRoom()">退出</button>
 
+<!-- 通話ボタン -->
+<button class="call" onclick="openCall()">
+📞 通話する
+</button>
+
 <br><br>
 
 <ul id="messages"></ul>
@@ -201,28 +191,6 @@ video{
 
 <button onclick="toggleNotify()">通知モード</button>
 
-<!-- ===== ビデオ通話 ===== -->
-
-<div id="video-area">
-
-<hr>
-
-<h3>ビデオ通話</h3>
-
-<!-- 自分 -->
-<video
-    id="my-video"
-    autoplay
-    muted
-    playsinline
-    width="250">
-</video>
-
-<!-- 相手 -->
-<div id="remote-videos"></div>
-
-</div>
-
 </div>
 
 </div>
@@ -233,13 +201,12 @@ var socket=io();
 var currentRoom=null;
 var notifyMode=false;
 
-var peer=null;
-var localStream=null;
-var room=null;
-
 /* ===== スクロール ===== */
+
 function scrollToBottom(){
+
     var messages=document.getElementById("messages");
+
     messages.scrollTop=messages.scrollHeight;
 }
 
@@ -265,6 +232,20 @@ function joinRoom(){
 
 function joinHistory(roomId){
     socket.emit("join_room_by_id",{room:roomId});
+}
+
+/* ===== 通話ページ ===== */
+
+function openCall(){
+
+    if(!currentRoom){
+        return;
+    }
+
+    window.open(
+        "/call/" + currentRoom,
+        "_blank"
+    );
 }
 
 /* ===== メモ保存 ===== */
@@ -326,22 +307,6 @@ function leaveRoom(){
 
     socket.emit("leave_room",{room:currentRoom});
 
-    // SkyWay退出
-    if(room){
-        room.close();
-        room = null;
-    }
-
-    // カメラ停止
-    if(localStream){
-        localStream.getTracks().forEach(track=>{
-            track.stop();
-        });
-    }
-
-    // 相手映像削除
-    document.getElementById("remote-videos").innerHTML="";
-
     currentRoom=null;
 
     document.getElementById("chatArea").style.display="none";
@@ -388,66 +353,6 @@ function toggleNotify(){
 
 }
 
-/* ===== ビデオ通話 ===== */
-
-async function joinVideoRoom(roomId){
-
-    try{
-
-        // カメラ・マイク取得
-        localStream = await navigator.mediaDevices.getUserMedia({
-            video:true,
-            audio:true
-        });
-
-        // 自分映像
-        const myVideo=document.getElementById("my-video");
-        myVideo.srcObject=localStream;
-
-        // Peer作成
-        peer = new Peer({
-
-            // ←ここを自分のSkyWay APIキーに変更
-            key:"ここにSkyWayAPIキー"
-
-        });
-
-        peer.on("open", ()=>{
-
-            // ルーム参加
-            room = peer.joinRoom(roomId,{
-                mode:"mesh",
-                stream:localStream
-            });
-
-            // 相手参加
-            room.on("stream", stream=>{
-
-                const video=document.createElement("video");
-
-                video.srcObject=stream;
-                video.autoplay=true;
-                video.playsInline=true;
-                video.width=250;
-
-                document
-                    .getElementById("remote-videos")
-                    .appendChild(video);
-
-            });
-
-        });
-
-    }catch(err){
-
-        console.error(err);
-
-        alert("カメラまたはマイクに接続できません");
-
-    }
-
-}
-
 /* ===== ソケット ===== */
 
 socket.on("room_created",function(data){
@@ -456,8 +361,6 @@ socket.on("room_created",function(data){
 
     enterRoom("作成したルーム ID : "+data.room);
 
-    joinVideoRoom(data.room);
-
 });
 
 socket.on("joined",function(data){
@@ -465,8 +368,6 @@ socket.on("joined",function(data){
     currentRoom=data.room;
 
     enterRoom("参加中ルーム ID : "+data.room);
-
-    joinVideoRoom(data.room);
 
 });
 
