@@ -9,6 +9,10 @@
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+<!-- Socket.IO -->
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<!-- SkyWay -->
 <script src="https://cdn.jsdelivr.net/npm/skyway-js@4.4.4/dist/skyway.min.js"></script>
 
 <style>
@@ -35,12 +39,22 @@ video{
     margin:10px;
     border-radius:10px;
     background:black;
+    object-fit:cover;
 }
+
+/* 自分の映像だけ反転 */
+
+#my-video{
+    transform:scaleX(-1);
+}
+
+/* 相手映像エリア */
 
 #remote-videos{
     display:flex;
     flex-wrap:wrap;
     justify-content:center;
+    padding-bottom:30px;
 }
 
 /* ===== ボタン ===== */
@@ -49,10 +63,30 @@ button{
     padding:10px 15px;
     border:none;
     border-radius:8px;
-    background:#ff4444;
     color:white;
     cursor:pointer;
     margin-top:10px;
+    margin-left:5px;
+    margin-right:5px;
+    font-size:15px;
+}
+
+/* 通話終了 */
+
+.end-btn{
+    background:#ff4444;
+}
+
+/* ミュート */
+
+.mute-btn{
+    background:#5865f2;
+}
+
+/* カメラ */
+
+.camera-btn{
+    background:#38b48b;
 }
 
 </style>
@@ -68,13 +102,31 @@ button{
 {{ room_id }}
 </h2>
 
-<button onclick="leaveCall()">
+<button
+    class="end-btn"
+    onclick="leaveCall()"
+>
 ❌ 通話終了
+</button>
+
+<button
+    class="mute-btn"
+    onclick="toggleMute()"
+>
+🔇 ミュート
+</button>
+
+<button
+    class="camera-btn"
+    onclick="toggleCamera()"
+>
+📷 カメラOFF
 </button>
 
 </div>
 
 <!-- 自分 -->
+
 <video
     id="my-video"
     autoplay
@@ -83,37 +135,55 @@ button{
 </video>
 
 <!-- 相手 -->
+
 <div id="remote-videos"></div>
 
 <script>
 
+const socket = io();
+
 let localStream;
+
 let peer;
+
 let room;
+
+let audioEnabled = true;
+
+let videoEnabled = true;
 
 const ROOM_ID = "{{ room_id }}";
 
-/* ===== 通話開始 ===== */
+/* ======================
+   通話開始
+====================== */
 
 async function startCall(){
 
     try{
 
         // カメラ・マイク取得
-        localStream = await navigator.mediaDevices.getUserMedia({
-            video:true,
-            audio:true
-        });
 
-        // 自分映像
-        const myVideo=document.getElementById("my-video");
+        localStream =
+            await navigator.mediaDevices.getUserMedia({
 
-        myVideo.srcObject=localStream;
+                video:true,
+                audio:true
 
-        // Peer
+            });
+
+        // 自分映像表示
+
+        const myVideo =
+            document.getElementById("my-video");
+
+        myVideo.srcObject = localStream;
+
+        // Peer作成
+
         peer = new Peer({
 
-            // ←ここにSkyWay APIキー
+            // SkyWay APIキー
             key:"ここにSkyWayAPIキー"
 
         });
@@ -121,23 +191,62 @@ async function startCall(){
         peer.on("open", ()=>{
 
             // ルーム参加
-            room = peer.joinRoom(ROOM_ID,{
-                mode:"mesh",
-                stream:localStream
-            });
 
-            // 他人映像
+            room = peer.joinRoom(
+
+                ROOM_ID,
+
+                {
+                    mode:"mesh",
+                    stream:localStream
+                }
+
+            );
+
+            // 相手映像受信
+
             room.on("stream", stream=>{
 
-                const video=document.createElement("video");
+                const video =
+                    document.createElement("video");
 
-                video.srcObject=stream;
-                video.autoplay=true;
-                video.playsInline=true;
+                video.srcObject = stream;
+
+                video.autoplay = true;
+
+                video.playsInline = true;
+
+                // 相手ID保存
+
+                video.setAttribute(
+                    "data-peer-id",
+                    stream.peerId
+                );
 
                 document
                     .getElementById("remote-videos")
                     .appendChild(video);
+
+            });
+
+            // 相手退出
+
+            room.on("peerLeave", peerId=>{
+
+                const videos =
+                    document.querySelectorAll(
+                        "#remote-videos video"
+                    );
+
+                videos.forEach(video=>{
+
+                    if(
+                        video.dataset.peerId === peerId
+                    ){
+                        video.remove();
+                    }
+
+                });
 
             });
 
@@ -147,32 +256,129 @@ async function startCall(){
 
         console.error(err);
 
-        alert("カメラまたはマイクを使用できません");
+        alert(
+            "カメラまたはマイクを使用できません"
+        );
 
     }
 
 }
 
-/* ===== 通話終了 ===== */
+/* ======================
+   通話終了
+====================== */
 
 function leaveCall(){
+
+    // 通話終了通知
+
+    socket.emit("call_ended",{
+        room:ROOM_ID
+    });
+
+    // SkyWay終了
 
     if(room){
         room.close();
     }
 
+    // カメラ・マイク停止
+
     if(localStream){
 
-        localStream.getTracks().forEach(track=>{
+        localStream
+        .getTracks()
+        .forEach(track=>{
+
             track.stop();
+
         });
 
     }
 
+    // タブ閉じる
+
     window.close();
+
 }
 
-/* ===== 自動開始 ===== */
+/* ======================
+   ミュート
+====================== */
+
+function toggleMute(){
+
+    if(!localStream){
+        return;
+    }
+
+    audioEnabled = !audioEnabled;
+
+    localStream
+    .getAudioTracks()
+    .forEach(track=>{
+
+        track.enabled = audioEnabled;
+
+    });
+
+    // ボタン変更
+
+    const btn =
+        document.querySelector(".mute-btn");
+
+    if(audioEnabled){
+
+        btn.innerText = "🔇 ミュート";
+
+    }else{
+
+        btn.innerText = "🔊 ミュート解除";
+
+    }
+
+}
+
+/* ======================
+   カメラ
+====================== */
+
+function toggleCamera(){
+
+    if(!localStream){
+        return;
+    }
+
+    videoEnabled = !videoEnabled;
+
+    localStream
+    .getVideoTracks()
+    .forEach(track=>{
+
+        track.enabled = videoEnabled;
+
+    });
+
+    // ボタン変更
+
+    const btn =
+        document.querySelector(".camera-btn");
+
+    if(videoEnabled){
+
+        btn.innerText = "📷 カメラOFF";
+
+    }else{
+
+        btn.innerText = "📷 カメラON";
+
+    }
+
+}
+
+/* ======================
+   自動開始
+====================== */
 
 startCall();
 
