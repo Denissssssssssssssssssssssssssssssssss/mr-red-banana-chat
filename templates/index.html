@@ -4,9 +4,13 @@
 <head>
 
 <meta charset="UTF-8">
+
 <title>Mr.Red Banana 暇人チャッツ</title>
 
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+>
 
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
@@ -127,6 +131,16 @@ input{
     opacity:1;
 }
 
+/* ===== セキュリティ ===== */
+
+#securityPanel{
+    display:none;
+    background:#222;
+    padding:10px;
+    border-radius:10px;
+    margin-top:10px;
+}
+
 </style>
 
 </head>
@@ -139,7 +153,9 @@ input{
 
 <div id="main">
 
-<h2>こんにちは {{ username }} さん</h2>
+<h2>
+こんにちは {{ username }} さん
+</h2>
 
 <a href="/logout" style="color:white;">
 ログアウト
@@ -147,7 +163,9 @@ input{
 
 <hr>
 
-<!-- ===== ホーム ===== -->
+<!-- ======================
+     ホーム
+====================== -->
 
 <div id="homeArea">
 
@@ -168,7 +186,9 @@ input{
 参加
 </button>
 
-<h3>あなたのルーム履歴</h3>
+<h3>
+あなたのルーム履歴
+</h3>
 
 <ul>
 
@@ -178,13 +198,16 @@ input{
 
     ルームID : {{ r[0] }}
 
-    <input 
+    <input
         value="{{ r[1] or '' }}"
         placeholder="メモ"
         oninput="saveNote('{{ r[0] }}', this)"
     >
 
-    <span class="check" id="check-{{ r[0] }}">
+    <span
+        class="check"
+        id="check-{{ r[0] }}"
+    >
     ✔
     </span>
 
@@ -207,19 +230,90 @@ input{
 
 </div>
 
-<!-- ===== チャット ===== -->
+<!-- ======================
+     チャット
+====================== -->
 
-<div id="chatArea" style="display:none;">
+<div
+    id="chatArea"
+    style="display:none;"
+>
+
+<div
+    style="
+    display:flex;
+    align-items:center;
+    gap:10px;
+    "
+>
 
 <h3 id="roomTitle"></h3>
+
+<button onclick="toggleSecurityPanel()">
+🔒
+</button>
+
+</div>
 
 <button onclick="leaveRoom()">
 退出
 </button>
 
-<button class="call" onclick="openCall()">
+<button
+    class="call"
+    onclick="openCall()"
+>
 📞 通話する
 </button>
+
+<!-- ======================
+     セキュリティ
+====================== -->
+
+<div id="securityPanel">
+
+<p>
+部屋のパスワード保護
+</p>
+
+<label>
+
+<input
+    type="checkbox"
+    id="passwordEnabled"
+>
+
+ON / OFF
+
+</label>
+
+<br><br>
+
+<input
+    type="password"
+    id="roomPassword"
+    placeholder="部屋パスワード"
+>
+
+<button onclick="saveRoomPassword()">
+保存
+</button>
+
+<p
+    style="
+    font-size:12px;
+    color:gray;
+    "
+>
+
+注意：
+設定すると、
+初参加メンバーは
+パスワードが必要になります
+
+</p>
+
+</div>
 
 <br><br>
 
@@ -247,55 +341,164 @@ input{
 
 <script>
 
-var socket=io();
+var socket = io();
 
-var currentRoom=null;
+var currentRoom = null;
 
-var notifyMode=false;
+var notifyMode = false;
 
-/* ===== スクロール ===== */
+/* ======================
+   スクロール
+====================== */
 
 function scrollToBottom(){
 
-    var messages=document.getElementById("messages");
+    var messages =
+        document.getElementById(
+            "messages"
+        );
 
-    messages.scrollTop=messages.scrollHeight;
+    messages.scrollTop =
+        messages.scrollHeight;
+
 }
 
-/* ===== ルーム ===== */
+/* ======================
+   ルーム作成
+====================== */
 
 function createRoom(){
+
     socket.emit("create_room");
+
 }
 
-function joinRoom(){
+/* ======================
+   ルーム参加
+====================== */
 
-    var roomId=document.getElementById("roomInput").value;
+async function joinRoom(){
+
+    var roomId =
+        document
+        .getElementById("roomInput")
+        .value;
 
     var regex=/^[0-9]{8}$/;
 
     if(!regex.test(roomId)){
 
-        alert("ルームIDは半角数字8桁のみです");
+        alert(
+            "ルームIDは半角数字8桁のみです"
+        );
 
         return;
     }
 
-    socket.emit("join_room_by_id",{
-        room:roomId
-    });
+    // PASS確認
+
+    let response =
+        await fetch(
+            "/check_room_password",
+            {
+                method:"POST",
+
+                headers:{
+                    "Content-Type":"application/json"
+                },
+
+                body:JSON.stringify({
+                    room:roomId
+                })
+            }
+        );
+
+    let result =
+        await response.json();
+
+    // OKなら即参加
+
+    if(result.ok){
+
+        socket.emit(
+            "join_room_by_id",
+            {
+                room:roomId
+            }
+        );
+
+        return;
+    }
+
+    // PASS要求
+
+    let pass =
+        prompt(
+            "この部屋にはパスワードがあります"
+        );
+
+    if(pass===null){
+        return;
+    }
+
+    // PASS再確認
+
+    response =
+        await fetch(
+            "/check_room_password",
+            {
+                method:"POST",
+
+                headers:{
+                    "Content-Type":"application/json"
+                },
+
+                body:JSON.stringify({
+                    room:roomId,
+                    password:pass
+                })
+            }
+        );
+
+    result =
+        await response.json();
+
+    if(!result.ok){
+
+        alert(
+            "パスワードが違います"
+        );
+
+        return;
+    }
+
+    socket.emit(
+        "join_room_by_id",
+        {
+            room:roomId
+        }
+    );
 
 }
+
+/* ======================
+   履歴参加
+====================== */
 
 function joinHistory(roomId){
 
-    socket.emit("join_room_by_id",{
-        room:roomId
-    });
+    socket.emit(
+        "join_room_by_id",
+        {
+            room:roomId
+        }
+    );
 
 }
 
-/* ===== 通話ページ ===== */
+/* ======================
+   通話
+====================== */
 
 function openCall(){
 
@@ -303,12 +506,17 @@ function openCall(){
         return;
     }
 
-    // 通話通知送信
-    socket.emit("call_started",{
-        room:currentRoom
-    });
+    // 通話通知
 
-    // 通話ページ開く
+    socket.emit(
+        "call_started",
+        {
+            room:currentRoom
+        }
+    );
+
+    // 通話ページ
+
     window.open(
         "/call/" + currentRoom,
         "_blank"
@@ -316,7 +524,9 @@ function openCall(){
 
 }
 
-/* ===== 通話参加 ===== */
+/* ======================
+   通話参加
+====================== */
 
 function joinCall(roomId){
 
@@ -327,113 +537,154 @@ function joinCall(roomId){
 
 }
 
-/* ===== メモ保存 ===== */
+/* ======================
+   メモ保存
+====================== */
 
 function saveNote(roomId, input){
 
-    fetch("/save_note",{
+    fetch(
+        "/save_note",
+        {
 
-        method:"POST",
+            method:"POST",
 
-        headers:{
-            "Content-Type":"application/json"
-        },
+            headers:{
+                "Content-Type":"application/json"
+            },
 
-        body:JSON.stringify({
-            room:roomId,
-            note:input.value
-        })
+            body:JSON.stringify({
+                room:roomId,
+                note:input.value
+            })
 
-    }).then(()=>{
+        }
 
-        var check=document.getElementById(
-            "check-"+roomId
-        );
+    ).then(()=>{
+
+        var check =
+            document.getElementById(
+                "check-"+roomId
+            );
 
         check.classList.add("show");
 
         setTimeout(()=>{
+
             check.classList.remove("show");
+
         },1500);
 
     });
 
 }
 
-/* ===== 削除 ===== */
+/* ======================
+   履歴削除
+====================== */
 
 function deleteRoom(roomId){
 
-    var confirmDelete = confirm(
-        "本当にルームID：" +
-        roomId +
-        " を削除しますか？"
-    );
+    var confirmDelete =
+        confirm(
+            "本当に削除しますか？"
+        );
 
     if(!confirmDelete){
         return;
     }
 
-    fetch("/delete_room",{
+    fetch(
+        "/delete_room",
+        {
 
-        method:"POST",
+            method:"POST",
 
-        headers:{
-            "Content-Type":"application/json"
-        },
+            headers:{
+                "Content-Type":"application/json"
+            },
 
-        body:JSON.stringify({
-            room:roomId
-        })
+            body:JSON.stringify({
+                room:roomId
+            })
 
-    }).then(()=>{
+        }
+
+    ).then(()=>{
+
         location.reload();
+
     });
 
 }
 
-/* ===== 退出 ===== */
+/* ======================
+   退出
+====================== */
 
 function leaveRoom(){
 
-    socket.emit("leave_room",{
-        room:currentRoom
-    });
+    socket.emit(
+        "leave_room",
+        {
+            room:currentRoom
+        }
+    );
 
-    currentRoom=null;
+    currentRoom = null;
 
-    document.getElementById("chatArea").style.display="none";
+    document
+    .getElementById("chatArea")
+    .style.display = "none";
 
-    document.getElementById("homeArea").style.display="block";
+    document
+    .getElementById("homeArea")
+    .style.display = "block";
+
 }
 
-/* ===== 送信 ===== */
+/* ======================
+   送信
+====================== */
 
 function sendMessage(){
 
-    var msg=document.getElementById("msg").value;
+    var msg =
+        document.getElementById(
+            "msg"
+        ).value;
 
     if(msg && currentRoom){
 
-        socket.emit("message",{
-            room:currentRoom,
-            message:msg
-        });
+        socket.emit(
+            "message",
+            {
+                room:currentRoom,
+                message:msg
+            }
+        );
 
-        document.getElementById("msg").value="";
+        document
+        .getElementById("msg")
+        .value = "";
+
     }
 
 }
 
-/* ===== 通知 ===== */
+/* ======================
+   通知
+====================== */
 
 function toggleNotify(){
 
-    notifyMode=!notifyMode;
+    notifyMode = !notifyMode;
 
     if(notifyMode){
 
-        if(Notification.permission==="default"){
+        if(
+            Notification.permission==="default"
+        ){
             Notification.requestPermission();
         }
 
@@ -447,11 +698,83 @@ function toggleNotify(){
 
 }
 
-/* ===== ソケット ===== */
+/* ======================
+   セキュリティ
+====================== */
+
+function toggleSecurityPanel(){
+
+    const panel =
+        document.getElementById(
+            "securityPanel"
+        );
+
+    if(panel.style.display==="none"){
+
+        panel.style.display="block";
+
+    }else{
+
+        panel.style.display="none";
+
+    }
+
+}
+
+/* ======================
+   PASS保存
+====================== */
+
+function saveRoomPassword(){
+
+    const enabled =
+        document.getElementById(
+            "passwordEnabled"
+        ).checked;
+
+    const password =
+        document.getElementById(
+            "roomPassword"
+        ).value;
+
+    fetch(
+        "/set_room_password",
+        {
+            method:"POST",
+
+            headers:{
+                "Content-Type":"application/json"
+            },
+
+            body:JSON.stringify({
+
+                room:currentRoom,
+
+                enabled:enabled,
+
+                password:password
+
+            })
+
+        }
+
+    ).then(()=>{
+
+        alert(
+            "ルームパスワード保存完了"
+        );
+
+    });
+
+}
+
+/* ======================
+   socket
+====================== */
 
 socket.on("room_created",function(data){
 
-    currentRoom=data.room;
+    currentRoom = data.room;
 
     enterRoom(
         "作成したルーム ID : " +
@@ -462,7 +785,7 @@ socket.on("room_created",function(data){
 
 socket.on("joined",function(data){
 
-    currentRoom=data.room;
+    currentRoom = data.room;
 
     enterRoom(
         "参加中ルーム ID : " +
@@ -471,60 +794,82 @@ socket.on("joined",function(data){
 
 });
 
-/* ===== チャット ===== */
+/* ======================
+   チャット
+====================== */
 
 socket.on("chat_message",function(data){
 
-    var li=document.createElement("li");
+    var li =
+        document.createElement("li");
 
-    li.textContent=
+    li.textContent =
         data.username +
         " : " +
         data.message;
 
-    if(data.username === "{{ username }}"){
+    if(
+        data.username ===
+        "{{ username }}"
+    ){
         li.classList.add("me");
     }
 
-    var messages=document.getElementById("messages");
+    var messages =
+        document.getElementById(
+            "messages"
+        );
 
     messages.appendChild(li);
 
     scrollToBottom();
+
+    // 通知
 
     if(
         notifyMode &&
         Notification.permission==="granted"
     ){
 
-        new Notification("M.R.B",{
-            body:
-                data.username +
-                " : " +
-                data.message
-        });
+        new Notification(
+            "M.R.B",
+            {
+                body:
+                    data.username +
+                    " : " +
+                    data.message
+            }
+        );
 
     }
 
 });
 
-/* ===== 通話通知 ===== */
+/* ======================
+   通話開始通知
+====================== */
 
 socket.on("call_notification",function(data){
 
-    var li=document.createElement("li");
+    var li =
+        document.createElement("li");
 
     li.classList.add("notice");
 
     li.innerHTML =
+
         "⭐通知：" +
+
         data.username +
+
         "さんが通話を始めました " +
 
         "<button class='join-call' " +
 
         "onclick=\"joinCall('" +
+
         data.room +
+
         "')\">" +
 
         "参加する" +
@@ -538,6 +883,7 @@ socket.on("call_notification",function(data){
     scrollToBottom();
 
     // 通知モード
+
     if(
         notifyMode &&
         Notification.permission==="granted"
@@ -554,7 +900,6 @@ socket.on("call_notification",function(data){
 
         );
 
-        // 通知クリック
         n.onclick = function(){
 
             window.open(
@@ -568,32 +913,76 @@ socket.on("call_notification",function(data){
 
 });
 
-/* ===== 入室 ===== */
+/* ======================
+   通話終了通知
+====================== */
+
+socket.on("call_end_notification",function(data){
+
+    var li =
+        document.createElement("li");
+
+    li.classList.add("notice");
+
+    li.innerHTML =
+
+        "⭐通知：" +
+
+        data.username +
+
+        "さんが通話を終了しました";
+
+    document
+        .getElementById("messages")
+        .appendChild(li);
+
+    scrollToBottom();
+
+});
+
+/* ======================
+   入室
+====================== */
 
 function enterRoom(title){
 
-    document.getElementById("homeArea").style.display="none";
+    document
+    .getElementById("homeArea")
+    .style.display = "none";
 
-    document.getElementById("chatArea").style.display="block";
+    document
+    .getElementById("chatArea")
+    .style.display = "block";
 
-    document.getElementById("roomTitle").innerText=title;
+    document
+    .getElementById("roomTitle")
+    .innerText = title;
 
-    document.getElementById("messages").innerHTML="";
+    document
+    .getElementById("messages")
+    .innerHTML = "";
 
-    scrollToBottom();
 }
 
-/* ===== 入力制限 ===== */
+/* ======================
+   数字制限
+====================== */
 
 document
 .getElementById("roomInput")
 .addEventListener("input",function(){
 
-    this.value=this.value.replace(/[^0-9]/g,"");
+    this.value =
+        this.value.replace(
+            /[^0-9]/g,
+            ""
+        );
 
 });
 
-/* ===== Enter送信 ===== */
+/* ======================
+   Enter送信
+====================== */
 
 document
 .getElementById("msg")
