@@ -39,6 +39,26 @@ body{
     margin-top:80px;
 }
 
+/* ===== CREATERログ ===== */
+
+#creatorLogBox{
+    background:#1b1b1b;
+    border:2px solid #444;
+    border-radius:12px;
+    padding:15px;
+    margin-bottom:20px;
+    max-width:500px;
+}
+
+.creator-log{
+    background:#222;
+    padding:10px;
+    border-radius:8px;
+    margin-top:10px;
+    white-space:pre-wrap;
+    word-break:break-word;
+}
+
 /* ===== メッセージ ===== */
 
 #messages{
@@ -108,7 +128,7 @@ input{
     margin:8px 0;
 }
 
-/* メモ欄 */
+/* ===== メモ欄 ===== */
 
 .history-item input{
     margin-left:10px;
@@ -117,7 +137,7 @@ input{
     color:white;
 }
 
-/* ✔マーク */
+/* ===== ✔マーク ===== */
 
 .check{
     color:#38b48b;
@@ -141,6 +161,24 @@ input{
     margin-top:10px;
 }
 
+/* ===== CREATER投稿 ===== */
+
+#creatorPostArea{
+    display:none;
+    margin-top:10px;
+}
+
+#creatorMessage{
+    width:100%;
+    height:150px;
+    border-radius:10px;
+    padding:10px;
+    background:#222;
+    color:white;
+    border:none;
+    resize:none;
+}
+
 </style>
 
 </head>
@@ -153,6 +191,76 @@ input{
 
 <div id="main">
 
+<!-- ======================
+     CREATERログ
+====================== -->
+
+<div id="creatorLogBox">
+
+<h3>
+CREATERログ
+</h3>
+
+<div id="creatorLogs">
+
+{% for log in creator_logs %}
+
+<div
+    class="creator-log"
+    id="creator-log-{{ log[0] }}"
+>
+
+{{ log[1] }}
+
+{% if username == "開発者" %}
+
+<button
+    style="float:right;background:red;"
+    onclick="deleteCreatorLog({{ log[0] }})"
+>
+✖
+</button>
+
+{% endif %}
+
+</div>
+
+{% endfor %}
+
+</div>
+
+{% if username == "開発者" %}
+
+<br>
+
+<button onclick="toggleCreatorPost()">
+＋ 投稿追加
+</button>
+
+<div id="creatorPostArea">
+
+<textarea
+    id="creatorMessage"
+></textarea>
+
+<br><br>
+
+<button onclick="sendCreatorLog()">
+📨 投稿
+</button>
+
+</div>
+
+{% endif %}
+
+</div>
+
+<!-- ======================
+     ホーム
+====================== -->
+
+<div id="homeArea">
+
 <h2>
 こんにちは {{ username }} さん
 </h2>
@@ -162,12 +270,6 @@ input{
 </a>
 
 <hr>
-
-<!-- ======================
-     ホーム
-====================== -->
-
-<div id="homeArea">
 
 <button onclick="createRoom()">
 ルーム作成
@@ -348,6 +450,137 @@ var currentRoom = null;
 var notifyMode = false;
 
 /* ======================
+   CREATERログUI
+====================== */
+
+function toggleCreatorPost(){
+
+    const area =
+        document.getElementById(
+            "creatorPostArea"
+        );
+
+    if(area.style.display==="none"){
+
+        area.style.display="block";
+
+    }else{
+
+        area.style.display="none";
+
+    }
+
+}
+
+/* ======================
+   投稿
+====================== */
+
+function sendCreatorLog(){
+
+    const msg =
+        document
+        .getElementById(
+            "creatorMessage"
+        )
+        .value;
+
+    if(!msg){
+        return;
+    }
+
+    socket.emit(
+        "add_creator_log",
+        {
+            message:msg
+        }
+    );
+
+    document
+    .getElementById(
+        "creatorMessage"
+    )
+    .value = "";
+
+}
+
+/* ======================
+   削除
+====================== */
+
+function deleteCreatorLog(id){
+
+    socket.emit(
+        "delete_creator_log",
+        {
+            id:id
+        }
+    );
+
+}
+
+/* ======================
+   受信
+====================== */
+
+socket.on(
+    "new_creator_log",
+    function(data){
+
+        const div =
+            document.createElement("div");
+
+        div.className =
+            "creator-log";
+
+        div.id =
+            "creator-log-" + data.id;
+
+        div.innerHTML =
+            data.message;
+
+        {% if username == "開発者" %}
+
+        div.innerHTML +=
+
+            '<button ' +
+
+            'style="float:right;background:red;" ' +
+
+            'onclick="deleteCreatorLog(' +
+
+            data.id +
+
+            ')">' +
+
+            '✖</button>';
+
+        {% endif %}
+
+        document
+        .getElementById("creatorLogs")
+        .prepend(div);
+
+    }
+);
+
+socket.on(
+    "creator_log_deleted",
+    function(data){
+
+        const el =
+            document.getElementById(
+                "creator-log-" + data.id
+            );
+
+        if(el){
+            el.remove();
+        }
+
+    }
+);
+
+/* ======================
    スクロール
 ====================== */
 
@@ -395,8 +628,6 @@ async function joinRoom(){
         return;
     }
 
-    // PASS確認
-
     let response =
         await fetch(
             "/check_room_password",
@@ -416,8 +647,6 @@ async function joinRoom(){
     let result =
         await response.json();
 
-    // OKなら即参加
-
     if(result.ok){
 
         socket.emit(
@@ -430,8 +659,6 @@ async function joinRoom(){
         return;
     }
 
-    // PASS要求
-
     let pass =
         prompt(
             "この部屋にはパスワードがあります"
@@ -440,8 +667,6 @@ async function joinRoom(){
     if(pass===null){
         return;
     }
-
-    // PASS再確認
 
     response =
         await fetch(
@@ -506,8 +731,6 @@ function openCall(){
         return;
     }
 
-    // 通話通知
-
     socket.emit(
         "call_started",
         {
@@ -515,18 +738,12 @@ function openCall(){
         }
     );
 
-    // 通話ページ
-
     window.open(
         "/call/" + currentRoom,
         "_blank"
     );
 
 }
-
-/* ======================
-   通話参加
-====================== */
 
 function joinCall(roomId){
 
@@ -721,10 +938,6 @@ function toggleSecurityPanel(){
 
 }
 
-/* ======================
-   PASS保存
-====================== */
-
 function saveRoomPassword(){
 
     const enabled =
@@ -824,25 +1037,6 @@ socket.on("chat_message",function(data){
 
     scrollToBottom();
 
-    // 通知
-
-    if(
-        notifyMode &&
-        Notification.permission==="granted"
-    ){
-
-        new Notification(
-            "M.R.B",
-            {
-                body:
-                    data.username +
-                    " : " +
-                    data.message
-            }
-        );
-
-    }
-
 });
 
 /* ======================
@@ -881,35 +1075,6 @@ socket.on("call_notification",function(data){
         .appendChild(li);
 
     scrollToBottom();
-
-    // 通知モード
-
-    if(
-        notifyMode &&
-        Notification.permission==="granted"
-    ){
-
-        var n = new Notification(
-
-            data.username +
-            "さんが通話を始めました",
-
-            {
-                body:"クリックして参加"
-            }
-
-        );
-
-        n.onclick = function(){
-
-            window.open(
-                "/call/" + data.room,
-                "_blank"
-            );
-
-        };
-
-    }
 
 });
 
