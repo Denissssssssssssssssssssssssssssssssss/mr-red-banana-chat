@@ -59,25 +59,54 @@ body{
 
     width:260px;
 
+    height:420px;
+
     background:#1b1b1b;
 
-    border:2px solid #444;
+    border:2px solid #333;
 
     border-radius:12px;
 
     padding:12px;
 
-    height:fit-content;
+    overflow:hidden;
+
+    display:flex;
+
+    flex-direction:column;
+}
+
+#creatorLogs{
+
+    flex:1;
+
+    overflow-y:auto;
+
+    margin-top:10px;
+
+    padding-right:5px;
+
 }
 
 .creator-log{
-    background:#222;
-    padding:8px;
-    border-radius:8px;
-    margin-top:8px;
+
+    background:#1f1f1f;
+
+    padding:6px;
+
+    border-radius:6px;
+
+    margin-top:6px;
+
     white-space:pre-wrap;
+
     word-break:break-word;
-    font-size:13px;
+
+    font-size:7px;
+
+    line-height:1.4;
+
+    color:#ccc;
 }
 
 /* ===== メッセージ ===== */
@@ -107,8 +136,8 @@ body{
 /* ===== 通知 ===== */
 
 .notice{
-    color:#ffd700;
-    font-weight:bold;
+    color:#aaa;
+    font-size:13px;
 }
 
 /* ===== ボタン ===== */
@@ -118,21 +147,21 @@ button{
     padding:8px 12px;
     border:none;
     border-radius:6px;
-    background:#777;
+    background:#555;
     color:white;
     cursor:pointer;
 }
 
 button.delete{
-    background:#ff0000;
+    background:#aa3333;
 }
 
 button.call{
-    background:#38b48b;
+    background:#444;
 }
 
 button.join-call{
-    background:#5865f2;
+    background:#555;
 }
 
 /* ===== 入力 ===== */
@@ -141,6 +170,8 @@ input{
     padding:8px;
     border-radius:6px;
     border:none;
+    background:#222;
+    color:white;
 }
 
 /* ===== 履歴 ===== */
@@ -154,8 +185,6 @@ input{
 .history-item input{
     margin-left:10px;
     width:150px;
-    background:#222;
-    color:white;
 }
 
 /* ===== ✔マーク ===== */
@@ -191,13 +220,14 @@ input{
 
 #creatorMessage{
     width:100%;
-    height:100px;
-    border-radius:10px;
-    padding:10px;
+    height:80px;
+    border-radius:8px;
+    padding:8px;
     background:#222;
     color:white;
     border:none;
     resize:none;
+    font-size:12px;
 }
 
 /* ===== スマホ ===== */
@@ -210,6 +240,7 @@ input{
 
     #creatorLogBox{
         width:100%;
+        height:250px;
     }
 
 }
@@ -219,8 +250,6 @@ input{
 </head>
 
 <body>
-
-<!-- ロゴ -->
 
 <img id="logo" src="/static/logo.png">
 
@@ -237,10 +266,6 @@ input{
 ====================== -->
 
 <div id="leftPanel">
-
-<!-- ======================
-     ホーム
-====================== -->
 
 <div id="homeArea">
 
@@ -262,7 +287,7 @@ input{
 
 <input
     id="roomInput"
-    placeholder="8桁IDを入力"
+    placeholder="8桁ID"
     maxlength="8"
     inputmode="numeric"
 >
@@ -272,7 +297,7 @@ input{
 </button>
 
 <h3>
-あなたのルーム履歴
+ルーム履歴
 </h3>
 
 <ul>
@@ -281,7 +306,7 @@ input{
 
 <li class="history-item">
 
-    ルームID : {{ r[0] }}
+    {{ r[0] }}
 
     <input
         value="{{ r[1] or '' }}"
@@ -323,9 +348,15 @@ input{
 
 <div id="creatorLogBox">
 
-<h3>
-📢 CREATERログ
-</h3>
+<h4
+    style="
+    margin:0;
+    margin-bottom:5px;
+    color:#aaa;
+    "
+>
+CREATERログ
+</h4>
 
 <div id="creatorLogs">
 
@@ -343,11 +374,13 @@ input{
 <button
     style="
     float:right;
-    background:red;
+    background:#662222;
+    font-size:8px;
+    padding:2px 5px;
     "
     onclick="deleteCreatorLog({{ log[0] }})"
 >
-✖
+×
 </button>
 
 {% endif %}
@@ -360,10 +393,14 @@ input{
 
 {% if username == "開発者" %}
 
-<br>
-
-<button onclick="toggleCreatorPost()">
-＋ 投稿追加
+<button
+    onclick="toggleCreatorPost()"
+    style="
+    margin-top:10px;
+    font-size:10px;
+    "
+>
+投稿追加
 </button>
 
 <div id="creatorPostArea">
@@ -372,10 +409,15 @@ input{
     id="creatorMessage"
 ></textarea>
 
-<br><br>
+<br>
 
-<button onclick="sendCreatorLog()">
-📨 投稿
+<button
+    onclick="sendCreatorLog()"
+    style="
+    font-size:10px;
+    "
+>
+投稿
 </button>
 
 </div>
@@ -419,12 +461,8 @@ input{
     class="call"
     onclick="openCall()"
 >
-📞 通話する
+通話する
 </button>
-
-<!-- ======================
-     セキュリティ
-====================== -->
 
 <div id="securityPanel">
 
@@ -455,20 +493,6 @@ ON / OFF
 保存
 </button>
 
-<p
-    style="
-    font-size:12px;
-    color:gray;
-    "
->
-
-注意：
-設定すると、
-初参加メンバーは
-パスワードが必要になります
-
-</p>
-
 </div>
 
 <br><br>
@@ -488,7 +512,7 @@ ON / OFF
 </button>
 
 <button onclick="toggleNotify()">
-通知モード
+通知
 </button>
 
 </div>
@@ -504,7 +528,7 @@ var currentRoom = null;
 var notifyMode = false;
 
 /* ======================
-   CREATERログUI
+   CREATERログ
 ====================== */
 
 function toggleCreatorPost(){
@@ -525,10 +549,6 @@ function toggleCreatorPost(){
     }
 
 }
-
-/* ======================
-   投稿
-====================== */
 
 function sendCreatorLog(){
 
@@ -558,10 +578,6 @@ function sendCreatorLog(){
 
 }
 
-/* ======================
-   削除
-====================== */
-
 function deleteCreatorLog(id){
 
     socket.emit(
@@ -572,10 +588,6 @@ function deleteCreatorLog(id){
     );
 
 }
-
-/* ======================
-   受信
-====================== */
 
 socket.on(
     "new_creator_log",
@@ -599,7 +611,7 @@ socket.on(
 
             '<button ' +
 
-            'style="float:right;background:red;" ' +
+            'style="float:right;background:#662222;font-size:8px;padding:2px 5px;" ' +
 
             'onclick="deleteCreatorLog(' +
 
@@ -607,7 +619,7 @@ socket.on(
 
             ')">' +
 
-            '✖</button>';
+            '×</button>';
 
         {% endif %}
 
@@ -650,19 +662,11 @@ function scrollToBottom(){
 
 }
 
-/* ======================
-   ルーム作成
-====================== */
-
 function createRoom(){
 
     socket.emit("create_room");
 
 }
-
-/* ======================
-   ルーム参加
-====================== */
 
 async function joinRoom(){
 
@@ -676,76 +680,7 @@ async function joinRoom(){
     if(!regex.test(roomId)){
 
         alert(
-            "ルームIDは半角数字8桁のみです"
-        );
-
-        return;
-    }
-
-    let response =
-        await fetch(
-            "/check_room_password",
-            {
-                method:"POST",
-
-                headers:{
-                    "Content-Type":"application/json"
-                },
-
-                body:JSON.stringify({
-                    room:roomId
-                })
-            }
-        );
-
-    let result =
-        await response.json();
-
-    if(result.ok){
-
-        socket.emit(
-            "join_room_by_id",
-            {
-                room:roomId
-            }
-        );
-
-        return;
-    }
-
-    let pass =
-        prompt(
-            "この部屋にはパスワードがあります"
-        );
-
-    if(pass===null){
-        return;
-    }
-
-    response =
-        await fetch(
-            "/check_room_password",
-            {
-                method:"POST",
-
-                headers:{
-                    "Content-Type":"application/json"
-                },
-
-                body:JSON.stringify({
-                    room:roomId,
-                    password:pass
-                })
-            }
-        );
-
-    result =
-        await response.json();
-
-    if(!result.ok){
-
-        alert(
-            "パスワードが違います"
+            "ルームIDは半角数字8桁"
         );
 
         return;
@@ -840,15 +775,6 @@ function saveNote(roomId, input){
 
 function deleteRoom(roomId){
 
-    var confirmDelete =
-        confirm(
-            "本当に削除しますか？"
-        );
-
-    if(!confirmDelete){
-        return;
-    }
-
     fetch(
         "/delete_room",
         {
@@ -889,8 +815,8 @@ function leaveRoom(){
     .style.display = "none";
 
     document
-    .getElementById("homeArea")
-    .style.display = "block";
+    .getElementById("topContainer")
+    .style.display = "flex";
 
 }
 
@@ -923,21 +849,11 @@ function toggleNotify(){
 
     notifyMode = !notifyMode;
 
-    if(notifyMode){
-
-        if(
-            Notification.permission==="default"
-        ){
-            Notification.requestPermission();
-        }
-
-        alert("通知モード ON");
-
-    }else{
-
-        alert("通知モード OFF");
-
-    }
+    alert(
+        notifyMode
+        ? "通知 ON"
+        : "通知 OFF"
+    );
 
 }
 
@@ -996,7 +912,7 @@ function saveRoomPassword(){
     ).then(()=>{
 
         alert(
-            "ルームパスワード保存完了"
+            "保存しました"
         );
 
     });
@@ -1008,7 +924,7 @@ socket.on("room_created",function(data){
     currentRoom = data.room;
 
     enterRoom(
-        "作成したルーム ID : " +
+        "ルーム ID : " +
         data.room
     );
 
@@ -1019,7 +935,7 @@ socket.on("joined",function(data){
     currentRoom = data.room;
 
     enterRoom(
-        "参加中ルーム ID : " +
+        "参加中 : " +
         data.room
     );
 
@@ -1062,11 +978,11 @@ socket.on("call_notification",function(data){
 
     li.innerHTML =
 
-        "⭐通知：" +
+        "通知 : " +
 
         data.username +
 
-        "さんが通話を始めました " +
+        " が通話を開始しました " +
 
         "<button class='join-call' " +
 
@@ -1076,32 +992,9 @@ socket.on("call_notification",function(data){
 
         "')\">" +
 
-        "参加する" +
+        "参加" +
 
         "</button>";
-
-    document
-        .getElementById("messages")
-        .appendChild(li);
-
-    scrollToBottom();
-
-});
-
-socket.on("call_end_notification",function(data){
-
-    var li =
-        document.createElement("li");
-
-    li.classList.add("notice");
-
-    li.innerHTML =
-
-        "⭐通知：" +
-
-        data.username +
-
-        "さんが通話を終了しました";
 
     document
         .getElementById("messages")
