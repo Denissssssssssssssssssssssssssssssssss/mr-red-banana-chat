@@ -20,6 +20,7 @@ body{
 }
 
 /* ===== ロゴ ===== */
+
 #logo{
     position:fixed;
     top:10px;
@@ -28,12 +29,14 @@ body{
     z-index:1000;
 }
 
-/* ロゴ分スペース */
+/* ===== メイン ===== */
+
 #main{
     margin-top:80px;
 }
 
 /* ===== メッセージ ===== */
+
 #messages{
     height:300px;
     overflow-y:scroll;
@@ -56,7 +59,15 @@ body{
     font-weight:bold;
 }
 
+/* ===== 通知 ===== */
+
+.notice{
+    color:#ffd700;
+    font-weight:bold;
+}
+
 /* ===== ボタン ===== */
+
 button{
     margin:5px;
     padding:8px 12px;
@@ -71,12 +82,16 @@ button.delete{
     background:#ff0000;
 }
 
-/* 通話ボタン */
 button.call{
     background:#38b48b;
 }
 
+button.join-call{
+    background:#5865f2;
+}
+
 /* ===== 入力 ===== */
+
 input{
     padding:8px;
     border-radius:6px;
@@ -84,11 +99,13 @@ input{
 }
 
 /* ===== 履歴 ===== */
+
 .history-item{
     margin:8px 0;
 }
 
 /* メモ欄 */
+
 .history-item input{
     margin-left:10px;
     width:150px;
@@ -97,6 +114,7 @@ input{
 }
 
 /* ✔マーク */
+
 .check{
     color:#38b48b;
     margin-left:5px;
@@ -116,26 +134,39 @@ input{
 <body>
 
 <!-- ロゴ -->
+
 <img id="logo" src="/static/logo.png">
 
 <div id="main">
 
 <h2>こんにちは {{ username }} さん</h2>
 
-<a href="/logout" style="color:white;">ログアウト</a>
+<a href="/logout" style="color:white;">
+ログアウト
+</a>
 
 <hr>
 
 <!-- ===== ホーム ===== -->
+
 <div id="homeArea">
 
-<button onclick="createRoom()">ルーム作成</button>
+<button onclick="createRoom()">
+ルーム作成
+</button>
 
 <br><br>
 
-<input id="roomInput" placeholder="8桁IDを入力" maxlength="8" inputmode="numeric">
+<input
+    id="roomInput"
+    placeholder="8桁IDを入力"
+    maxlength="8"
+    inputmode="numeric"
+>
 
-<button onclick="joinRoom()">参加</button>
+<button onclick="joinRoom()">
+参加
+</button>
 
 <h3>あなたのルーム履歴</h3>
 
@@ -153,11 +184,20 @@ input{
         oninput="saveNote('{{ r[0] }}', this)"
     >
 
-    <span class="check" id="check-{{ r[0] }}">✔</span>
+    <span class="check" id="check-{{ r[0] }}">
+    ✔
+    </span>
 
-    <button onclick="joinHistory('{{ r[0] }}')">参加</button>
+    <button onclick="joinHistory('{{ r[0] }}')">
+    参加
+    </button>
 
-    <button class="delete" onclick="deleteRoom('{{ r[0] }}')">削除</button>
+    <button
+        class="delete"
+        onclick="deleteRoom('{{ r[0] }}')"
+    >
+    削除
+    </button>
 
 </li>
 
@@ -168,13 +208,15 @@ input{
 </div>
 
 <!-- ===== チャット ===== -->
+
 <div id="chatArea" style="display:none;">
 
 <h3 id="roomTitle"></h3>
 
-<button onclick="leaveRoom()">退出</button>
+<button onclick="leaveRoom()">
+退出
+</button>
 
-<!-- 通話ボタン -->
 <button class="call" onclick="openCall()">
 📞 通話する
 </button>
@@ -185,11 +227,19 @@ input{
 
 <br>
 
-<input id="msg" autocomplete="off" placeholder="メッセージ">
+<input
+    id="msg"
+    autocomplete="off"
+    placeholder="メッセージ"
+>
 
-<button onclick="sendMessage()">送信</button>
+<button onclick="sendMessage()">
+送信
+</button>
 
-<button onclick="toggleNotify()">通知モード</button>
+<button onclick="toggleNotify()">
+通知モード
+</button>
 
 </div>
 
@@ -198,7 +248,9 @@ input{
 <script>
 
 var socket=io();
+
 var currentRoom=null;
+
 var notifyMode=false;
 
 /* ===== スクロール ===== */
@@ -223,15 +275,24 @@ function joinRoom(){
     var regex=/^[0-9]{8}$/;
 
     if(!regex.test(roomId)){
+
         alert("ルームIDは半角数字8桁のみです");
+
         return;
     }
 
-    socket.emit("join_room_by_id",{room:roomId});
+    socket.emit("join_room_by_id",{
+        room:roomId
+    });
+
 }
 
 function joinHistory(roomId){
-    socket.emit("join_room_by_id",{room:roomId});
+
+    socket.emit("join_room_by_id",{
+        room:roomId
+    });
+
 }
 
 /* ===== 通話ページ ===== */
@@ -242,10 +303,28 @@ function openCall(){
         return;
     }
 
+    // 通話通知送信
+    socket.emit("call_started",{
+        room:currentRoom
+    });
+
+    // 通話ページ開く
     window.open(
         "/call/" + currentRoom,
         "_blank"
     );
+
+}
+
+/* ===== 通話参加 ===== */
+
+function joinCall(roomId){
+
+    window.open(
+        "/call/" + roomId,
+        "_blank"
+    );
+
 }
 
 /* ===== メモ保存 ===== */
@@ -253,17 +332,23 @@ function openCall(){
 function saveNote(roomId, input){
 
     fetch("/save_note",{
+
         method:"POST",
+
         headers:{
             "Content-Type":"application/json"
         },
+
         body:JSON.stringify({
             room:roomId,
             note:input.value
         })
+
     }).then(()=>{
 
-        var check=document.getElementById("check-"+roomId);
+        var check=document.getElementById(
+            "check-"+roomId
+        );
 
         check.classList.add("show");
 
@@ -280,7 +365,9 @@ function saveNote(roomId, input){
 function deleteRoom(roomId){
 
     var confirmDelete = confirm(
-        "本当にルームID：" + roomId + " を削除しますか？"
+        "本当にルームID：" +
+        roomId +
+        " を削除しますか？"
     );
 
     if(!confirmDelete){
@@ -288,13 +375,17 @@ function deleteRoom(roomId){
     }
 
     fetch("/delete_room",{
+
         method:"POST",
+
         headers:{
             "Content-Type":"application/json"
         },
+
         body:JSON.stringify({
             room:roomId
         })
+
     }).then(()=>{
         location.reload();
     });
@@ -305,11 +396,14 @@ function deleteRoom(roomId){
 
 function leaveRoom(){
 
-    socket.emit("leave_room",{room:currentRoom});
+    socket.emit("leave_room",{
+        room:currentRoom
+    });
 
     currentRoom=null;
 
     document.getElementById("chatArea").style.display="none";
+
     document.getElementById("homeArea").style.display="block";
 }
 
@@ -359,7 +453,10 @@ socket.on("room_created",function(data){
 
     currentRoom=data.room;
 
-    enterRoom("作成したルーム ID : "+data.room);
+    enterRoom(
+        "作成したルーム ID : " +
+        data.room
+    );
 
 });
 
@@ -367,15 +464,23 @@ socket.on("joined",function(data){
 
     currentRoom=data.room;
 
-    enterRoom("参加中ルーム ID : "+data.room);
+    enterRoom(
+        "参加中ルーム ID : " +
+        data.room
+    );
 
 });
+
+/* ===== チャット ===== */
 
 socket.on("chat_message",function(data){
 
     var li=document.createElement("li");
 
-    li.textContent=data.username+" : "+data.message;
+    li.textContent=
+        data.username +
+        " : " +
+        data.message;
 
     if(data.username === "{{ username }}"){
         li.classList.add("me");
@@ -387,11 +492,77 @@ socket.on("chat_message",function(data){
 
     scrollToBottom();
 
-    if(notifyMode && Notification.permission==="granted"){
+    if(
+        notifyMode &&
+        Notification.permission==="granted"
+    ){
 
         new Notification("M.R.B",{
-            body:data.username+" : "+data.message
+            body:
+                data.username +
+                " : " +
+                data.message
         });
+
+    }
+
+});
+
+/* ===== 通話通知 ===== */
+
+socket.on("call_notification",function(data){
+
+    var li=document.createElement("li");
+
+    li.classList.add("notice");
+
+    li.innerHTML =
+        "⭐通知：" +
+        data.username +
+        "さんが通話を始めました " +
+
+        "<button class='join-call' " +
+
+        "onclick=\"joinCall('" +
+        data.room +
+        "')\">" +
+
+        "参加する" +
+
+        "</button>";
+
+    document
+        .getElementById("messages")
+        .appendChild(li);
+
+    scrollToBottom();
+
+    // 通知モード
+    if(
+        notifyMode &&
+        Notification.permission==="granted"
+    ){
+
+        var n = new Notification(
+
+            data.username +
+            "さんが通話を始めました",
+
+            {
+                body:"クリックして参加"
+            }
+
+        );
+
+        // 通知クリック
+        n.onclick = function(){
+
+            window.open(
+                "/call/" + data.room,
+                "_blank"
+            );
+
+        };
 
     }
 
@@ -402,6 +573,7 @@ socket.on("chat_message",function(data){
 function enterRoom(title){
 
     document.getElementById("homeArea").style.display="none";
+
     document.getElementById("chatArea").style.display="block";
 
     document.getElementById("roomTitle").innerText=title;
@@ -413,7 +585,9 @@ function enterRoom(title){
 
 /* ===== 入力制限 ===== */
 
-document.getElementById("roomInput").addEventListener("input",function(){
+document
+.getElementById("roomInput")
+.addEventListener("input",function(){
 
     this.value=this.value.replace(/[^0-9]/g,"");
 
@@ -421,7 +595,9 @@ document.getElementById("roomInput").addEventListener("input",function(){
 
 /* ===== Enter送信 ===== */
 
-document.getElementById("msg").addEventListener("keypress",function(e){
+document
+.getElementById("msg")
+.addEventListener("keypress",function(e){
 
     if(e.key==="Enter"){
         sendMessage();
