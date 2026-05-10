@@ -29,7 +29,7 @@ body{
     position:fixed;
     top:10px;
     left:10px;
-    width:200px;
+    width:180px;
     z-index:1000;
 }
 
@@ -39,24 +39,45 @@ body{
     margin-top:80px;
 }
 
+/* ===== 上部レイアウト ===== */
+
+#topContainer{
+    display:flex;
+    gap:20px;
+    align-items:flex-start;
+}
+
+/* ===== 左側 ===== */
+
+#leftPanel{
+    flex:1;
+}
+
 /* ===== CREATERログ ===== */
 
 #creatorLogBox{
+
+    width:260px;
+
     background:#1b1b1b;
+
     border:2px solid #444;
+
     border-radius:12px;
-    padding:15px;
-    margin-bottom:20px;
-    max-width:500px;
+
+    padding:12px;
+
+    height:fit-content;
 }
 
 .creator-log{
     background:#222;
-    padding:10px;
+    padding:8px;
     border-radius:8px;
-    margin-top:10px;
+    margin-top:8px;
     white-space:pre-wrap;
     word-break:break-word;
+    font-size:13px;
 }
 
 /* ===== メッセージ ===== */
@@ -170,13 +191,27 @@ input{
 
 #creatorMessage{
     width:100%;
-    height:150px;
+    height:100px;
     border-radius:10px;
     padding:10px;
     background:#222;
     color:white;
     border:none;
     resize:none;
+}
+
+/* ===== スマホ ===== */
+
+@media(max-width:900px){
+
+    #topContainer{
+        flex-direction:column;
+    }
+
+    #creatorLogBox{
+        width:100%;
+    }
+
 }
 
 </style>
@@ -192,68 +227,16 @@ input{
 <div id="main">
 
 <!-- ======================
-     CREATERログ
+     上部コンテナ
 ====================== -->
 
-<div id="creatorLogBox">
+<div id="topContainer">
 
-<h3>
-CREATERログ
-</h3>
+<!-- ======================
+     左側
+====================== -->
 
-<div id="creatorLogs">
-
-{% for log in creator_logs %}
-
-<div
-    class="creator-log"
-    id="creator-log-{{ log[0] }}"
->
-
-{{ log[1] }}
-
-{% if username == "開発者" %}
-
-<button
-    style="float:right;background:red;"
-    onclick="deleteCreatorLog({{ log[0] }})"
->
-✖
-</button>
-
-{% endif %}
-
-</div>
-
-{% endfor %}
-
-</div>
-
-{% if username == "開発者" %}
-
-<br>
-
-<button onclick="toggleCreatorPost()">
-＋ 投稿追加
-</button>
-
-<div id="creatorPostArea">
-
-<textarea
-    id="creatorMessage"
-></textarea>
-
-<br><br>
-
-<button onclick="sendCreatorLog()">
-📨 投稿
-</button>
-
-</div>
-
-{% endif %}
-
-</div>
+<div id="leftPanel">
 
 <!-- ======================
      ホーム
@@ -329,6 +312,77 @@ CREATERログ
 {% endfor %}
 
 </ul>
+
+</div>
+
+</div>
+
+<!-- ======================
+     CREATERログ
+====================== -->
+
+<div id="creatorLogBox">
+
+<h3>
+📢 CREATERログ
+</h3>
+
+<div id="creatorLogs">
+
+{% for log in creator_logs %}
+
+<div
+    class="creator-log"
+    id="creator-log-{{ log[0] }}"
+>
+
+{{ log[1] }}
+
+{% if username == "開発者" %}
+
+<button
+    style="
+    float:right;
+    background:red;
+    "
+    onclick="deleteCreatorLog({{ log[0] }})"
+>
+✖
+</button>
+
+{% endif %}
+
+</div>
+
+{% endfor %}
+
+</div>
+
+{% if username == "開発者" %}
+
+<br>
+
+<button onclick="toggleCreatorPost()">
+＋ 投稿追加
+</button>
+
+<div id="creatorPostArea">
+
+<textarea
+    id="creatorMessage"
+></textarea>
+
+<br><br>
+
+<button onclick="sendCreatorLog()">
+📨 投稿
+</button>
+
+</div>
+
+{% endif %}
+
+</div>
 
 </div>
 
@@ -706,10 +760,6 @@ async function joinRoom(){
 
 }
 
-/* ======================
-   履歴参加
-====================== */
-
 function joinHistory(roomId){
 
     socket.emit(
@@ -720,10 +770,6 @@ function joinHistory(roomId){
     );
 
 }
-
-/* ======================
-   通話
-====================== */
 
 function openCall(){
 
@@ -753,10 +799,6 @@ function joinCall(roomId){
     );
 
 }
-
-/* ======================
-   メモ保存
-====================== */
 
 function saveNote(roomId, input){
 
@@ -796,10 +838,6 @@ function saveNote(roomId, input){
 
 }
 
-/* ======================
-   履歴削除
-====================== */
-
 function deleteRoom(roomId){
 
     var confirmDelete =
@@ -835,10 +873,6 @@ function deleteRoom(roomId){
 
 }
 
-/* ======================
-   退出
-====================== */
-
 function leaveRoom(){
 
     socket.emit(
@@ -859,10 +893,6 @@ function leaveRoom(){
     .style.display = "block";
 
 }
-
-/* ======================
-   送信
-====================== */
 
 function sendMessage(){
 
@@ -889,10 +919,6 @@ function sendMessage(){
 
 }
 
-/* ======================
-   通知
-====================== */
-
 function toggleNotify(){
 
     notifyMode = !notifyMode;
@@ -914,10 +940,6 @@ function toggleNotify(){
     }
 
 }
-
-/* ======================
-   セキュリティ
-====================== */
 
 function toggleSecurityPanel(){
 
@@ -981,10 +1003,6 @@ function saveRoomPassword(){
 
 }
 
-/* ======================
-   socket
-====================== */
-
 socket.on("room_created",function(data){
 
     currentRoom = data.room;
@@ -1006,10 +1024,6 @@ socket.on("joined",function(data){
     );
 
 });
-
-/* ======================
-   チャット
-====================== */
 
 socket.on("chat_message",function(data){
 
@@ -1038,10 +1052,6 @@ socket.on("chat_message",function(data){
     scrollToBottom();
 
 });
-
-/* ======================
-   通話開始通知
-====================== */
 
 socket.on("call_notification",function(data){
 
@@ -1078,10 +1088,6 @@ socket.on("call_notification",function(data){
 
 });
 
-/* ======================
-   通話終了通知
-====================== */
-
 socket.on("call_end_notification",function(data){
 
     var li =
@@ -1105,14 +1111,10 @@ socket.on("call_end_notification",function(data){
 
 });
 
-/* ======================
-   入室
-====================== */
-
 function enterRoom(title){
 
     document
-    .getElementById("homeArea")
+    .getElementById("topContainer")
     .style.display = "none";
 
     document
@@ -1129,10 +1131,6 @@ function enterRoom(title){
 
 }
 
-/* ======================
-   数字制限
-====================== */
-
 document
 .getElementById("roomInput")
 .addEventListener("input",function(){
@@ -1144,10 +1142,6 @@ document
         );
 
 });
-
-/* ======================
-   Enter送信
-====================== */
 
 document
 .getElementById("msg")
