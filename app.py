@@ -423,7 +423,7 @@ def handle_message(data):
     )
 
 # ======================
-# 通話通知
+# 通話開始通知
 # ======================
 
 @socketio.on("call_started")
@@ -438,6 +438,25 @@ def call_started(data):
         {
             "username": username,
             "room": room
+        },
+        room=room
+    )
+
+# ======================
+# 通話終了通知
+# ======================
+
+@socketio.on("call_ended")
+def call_ended(data):
+
+    room = data["room"]
+
+    username = session["username"]
+
+    emit(
+        "call_end_notification",
+        {
+            "username": username
         },
         room=room
     )
