@@ -52,6 +52,16 @@ def init_db():
     )
     """)
 
+    # ルーム設定
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS room_settings(
+        room TEXT PRIMARY KEY,
+        password_enabled INTEGER,
+        password TEXT
+    )
+    """)
+
     conn.commit()
 
     conn.close()
@@ -255,6 +265,133 @@ def delete_room():
     return jsonify({"status":"ok"})
 
 # ======================
+# ルームパスワード設定
+# ======================
+
+@app.route("/set_room_password", methods=["POST"])
+def set_room_password():
+
+    data = request.get_json()
+
+    room = data["room"]
+
+    enabled = data["enabled"]
+
+    password = data["password"]
+
+    conn = sqlite3.connect("chat.db")
+
+    c = conn.cursor()
+
+    c.execute(
+        """
+        UPDATE room_settings
+        SET password_enabled=?,
+            password=?
+        WHERE room=?
+        """,
+        (
+            1 if enabled else 0,
+            password,
+            room
+        )
+    )
+
+    conn.commit()
+
+    conn.close()
+
+    return jsonify({"status":"ok"})
+
+# ======================
+# 参加前パスワード確認
+# ======================
+
+@app.route("/check_room_password", methods=["POST"])
+def check_room_password():
+
+    data = request.get_json()
+
+    room = data["room"]
+
+    password = data.get("password","")
+
+    username = session["username"]
+
+    conn = sqlite3.connect("chat.db")
+
+    c = conn.cursor()
+
+    # 履歴確認
+
+    c.execute(
+        """
+        SELECT * FROM room_members
+        WHERE room=? AND username=?
+        """,
+        (room, username)
+    )
+
+    already_joined = c.fetchone()
+
+    # 初参加じゃないならOK
+
+    if already_joined:
+
+        conn.close()
+
+        return jsonify({
+            "ok":True
+        })
+
+    # パス設定確認
+
+    c.execute(
+        """
+        SELECT password_enabled,password
+        FROM room_settings
+        WHERE room=?
+        """,
+        (room,)
+    )
+
+    row = c.fetchone()
+
+    conn.close()
+
+    # 設定なし
+
+    if not row:
+
+        return jsonify({
+            "ok":True
+        })
+
+    enabled = row[0]
+
+    real_password = row[1]
+
+    # OFF
+
+    if enabled == 0:
+
+        return jsonify({
+            "ok":True
+        })
+
+    # PASS一致
+
+    if password == real_password:
+
+        return jsonify({
+            "ok":True
+        })
+
+    return jsonify({
+        "ok":False
+    })
+
+# ======================
 # room id生成
 # ======================
 
@@ -294,6 +431,17 @@ def create_room():
     c.execute(
         "INSERT INTO room_members(room,username,note) VALUES (?,?,?)",
         (room_id, username, "")
+    )
+
+    # デフォルト設定
+
+    c.execute(
+        """
+        INSERT OR REPLACE INTO room_settings
+        (room,password_enabled,password)
+        VALUES (?,?,?)
+        """,
+        (room_id, 0, "")
     )
 
     conn.commit()
