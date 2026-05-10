@@ -62,6 +62,15 @@ def init_db():
     )
     """)
 
+    # CREATERログ
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS creator_logs(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        message TEXT
+    )
+    """)
+
     conn.commit()
 
     conn.close()
@@ -90,19 +99,38 @@ def index():
 
     c = conn.cursor()
 
+    # ルーム履歴
+
     c.execute(
-        "SELECT room, note FROM room_members WHERE username=?",
+        """
+        SELECT room, note
+        FROM room_members
+        WHERE username=?
+        """,
         (username,)
     )
 
     room_history = c.fetchall()
+
+    # CREATERログ
+
+    c.execute(
+        """
+        SELECT id,message
+        FROM creator_logs
+        ORDER BY id DESC
+        """
+    )
+
+    creator_logs = c.fetchall()
 
     conn.close()
 
     return render_template(
         "index.html",
         username=username,
-        room_history=room_history
+        room_history=room_history,
+        creator_logs=creator_logs
     )
 
 # ======================
@@ -136,7 +164,11 @@ def register():
     c = conn.cursor()
 
     c.execute(
-        "SELECT * FROM users WHERE username=?",
+        """
+        SELECT *
+        FROM users
+        WHERE username=?
+        """,
         (username,)
     )
 
@@ -146,10 +178,14 @@ def register():
 
         return "そのユーザーは既に存在します"
 
-    password_hash = generate_password_hash(password)
+    password_hash =
+        generate_password_hash(password)
 
     c.execute(
-        "INSERT INTO users VALUES (?,?)",
+        """
+        INSERT INTO users
+        VALUES (?,?)
+        """,
         (username, password_hash)
     )
 
@@ -177,7 +213,11 @@ def login():
     c = conn.cursor()
 
     c.execute(
-        "SELECT password FROM users WHERE username=?",
+        """
+        SELECT password
+        FROM users
+        WHERE username=?
+        """,
         (username,)
     )
 
@@ -226,7 +266,11 @@ def save_note():
     c = conn.cursor()
 
     c.execute(
-        "UPDATE room_members SET note=? WHERE room=? AND username=?",
+        """
+        UPDATE room_members
+        SET note=?
+        WHERE room=? AND username=?
+        """,
         (note, room, username)
     )
 
@@ -234,7 +278,9 @@ def save_note():
 
     conn.close()
 
-    return jsonify({"status":"ok"})
+    return jsonify({
+        "status":"ok"
+    })
 
 # ======================
 # 履歴削除
@@ -254,7 +300,10 @@ def delete_room():
     c = conn.cursor()
 
     c.execute(
-        "DELETE FROM room_members WHERE room=? AND username=?",
+        """
+        DELETE FROM room_members
+        WHERE room=? AND username=?
+        """,
         (room, username)
     )
 
@@ -262,7 +311,9 @@ def delete_room():
 
     conn.close()
 
-    return jsonify({"status":"ok"})
+    return jsonify({
+        "status":"ok"
+    })
 
 # ======================
 # ルームパスワード設定
@@ -301,7 +352,9 @@ def set_room_password():
 
     conn.close()
 
-    return jsonify({"status":"ok"})
+    return jsonify({
+        "status":"ok"
+    })
 
 # ======================
 # 参加前パスワード確認
@@ -326,7 +379,8 @@ def check_room_password():
 
     c.execute(
         """
-        SELECT * FROM room_members
+        SELECT *
+        FROM room_members
         WHERE room=? AND username=?
         """,
         (room, username)
@@ -429,7 +483,11 @@ def create_room():
     c = conn.cursor()
 
     c.execute(
-        "INSERT INTO room_members(room,username,note) VALUES (?,?,?)",
+        """
+        INSERT INTO room_members
+        (room,username,note)
+        VALUES (?,?,?)
+        """,
         (room_id, username, "")
     )
 
@@ -450,7 +508,9 @@ def create_room():
 
     emit(
         "room_created",
-        {"room":room_id}
+        {
+            "room":room_id
+        }
     )
 
 # ======================
@@ -477,14 +537,22 @@ def join_room_by_id(data):
     c = conn.cursor()
 
     c.execute(
-        "SELECT * FROM room_members WHERE room=? AND username=?",
+        """
+        SELECT *
+        FROM room_members
+        WHERE room=? AND username=?
+        """,
         (room_id, username)
     )
 
     if not c.fetchone():
 
         c.execute(
-            "INSERT INTO room_members(room,username,note) VALUES (?,?,?)",
+            """
+            INSERT INTO room_members
+            (room,username,note)
+            VALUES (?,?,?)
+            """,
             (room_id, username, "")
         )
 
@@ -492,13 +560,19 @@ def join_room_by_id(data):
 
     emit(
         "joined",
-        {"room":room_id}
+        {
+            "room":room_id
+        }
     )
 
-    # 過去メッセージ送信
+    # 過去メッセージ
 
     c.execute(
-        "SELECT username,message FROM messages WHERE room=?",
+        """
+        SELECT username,message
+        FROM messages
+        WHERE room=?
+        """,
         (room_id,)
     )
 
@@ -553,7 +627,11 @@ def handle_message(data):
     c = conn.cursor()
 
     c.execute(
-        "INSERT INTO messages(room,username,message) VALUES (?,?,?)",
+        """
+        INSERT INTO messages
+        (room,username,message)
+        VALUES (?,?,?)
+        """,
         (room, username, message)
     )
 
@@ -607,6 +685,85 @@ def call_ended(data):
             "username": username
         },
         room=room
+    )
+
+# ======================
+# CREATERログ投稿
+# ======================
+
+@socketio.on("add_creator_log")
+def add_creator_log(data):
+
+    username = session["username"]
+
+    # 開発者限定
+
+    if username != "開発者":
+        return
+
+    message = data["message"]
+
+    conn = sqlite3.connect("chat.db")
+
+    c = conn.cursor()
+
+    c.execute(
+        """
+        INSERT INTO creator_logs(message)
+        VALUES (?)
+        """,
+        (message,)
+    )
+
+    log_id = c.lastrowid
+
+    conn.commit()
+
+    conn.close()
+
+    socketio.emit(
+        "new_creator_log",
+        {
+            "id":log_id,
+            "message":message
+        }
+    )
+
+# ======================
+# CREATERログ削除
+# ======================
+
+@socketio.on("delete_creator_log")
+def delete_creator_log(data):
+
+    username = session["username"]
+
+    if username != "開発者":
+        return
+
+    log_id = data["id"]
+
+    conn = sqlite3.connect("chat.db")
+
+    c = conn.cursor()
+
+    c.execute(
+        """
+        DELETE FROM creator_logs
+        WHERE id=?
+        """,
+        (log_id,)
+    )
+
+    conn.commit()
+
+    conn.close()
+
+    socketio.emit(
+        "creator_log_deleted",
+        {
+            "id":log_id
+        }
     )
 
 # ======================
