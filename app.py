@@ -178,8 +178,7 @@ def register():
 
         return "そのユーザーは既に存在します"
 
-    password_hash =
-        generate_password_hash(password)
+    password_hash = generate_password_hash(password)
 
     c.execute(
         """
