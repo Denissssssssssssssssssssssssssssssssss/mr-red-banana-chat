@@ -21,7 +21,6 @@ from werkzeug.security import (
 from supabase import create_client
 from supabase.client import ClientOptions
 
-from gotrue import SyncSupportedStorage
 
 import os
 import random
