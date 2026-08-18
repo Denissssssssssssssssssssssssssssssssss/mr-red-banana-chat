@@ -42,20 +42,18 @@ app.config["SECRET_KEY"] = os.environ.get(
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
-if os.environ.get("RENDER") == "true":
+# HTTPS環境(Render)ではSecure Cookieを使用
+if os.environ.get("RENDER"):
     app.config["SESSION_COOKIE_SECURE"] = True
 
 
 # =========================================================
 # Socket.IO
-#
-# Eventletではなくthreadingを使用
 # =========================================================
 
 socketio = SocketIO(
     app,
-    cors_allowed_origins="*",
-    async_mode="threading"
+    cors_allowed_origins="*"
 )
 
 
@@ -106,9 +104,7 @@ db = create_client(
 # =========================================================
 # Flask Session Storage
 #
-# Supabase OAuth PKCE用
-#
-# gotrueのSyncSupportedStorageは使用しない。
+# Supabase OAuth PKCE用。
 # =========================================================
 
 class FlaskSessionStorage:
@@ -143,6 +139,8 @@ def get_auth_client():
 
 # =========================================================
 # 現在のSupabaseユーザー
+#
+# ★ここを安定版に変更
 # =========================================================
 
 def get_current_user():
@@ -162,12 +160,29 @@ def get_current_user():
 
         auth_client = get_auth_client()
 
+        # -------------------------------------------------
+        # 保存されているセッションをSupabase側にもセット
+        # -------------------------------------------------
+
         if refresh_token:
 
-            auth_client.auth.set_session(
-                access_token,
-                refresh_token
-            )
+            try:
+
+                auth_client.auth.set_session(
+                    access_token,
+                    refresh_token
+                )
+
+            except Exception as e:
+
+                print(
+                    "set_session warning:",
+                    repr(e)
+                )
+
+        # -------------------------------------------------
+        # 現在のユーザーをアクセストークンから取得
+        # -------------------------------------------------
 
         response = (
             auth_client
@@ -178,29 +193,59 @@ def get_current_user():
         user = response.user
 
         if not user:
-            return None
 
-        current_session = (
-            auth_client
-            .auth
-            .get_session()
-        )
-
-        if (
-            current_session
-            and current_session.session
-        ):
-
-            session["access_token"] = (
-                current_session
-                .session
-                .access_token
+            print(
+                "get_current_user: user is None"
             )
 
-            session["refresh_token"] = (
+            return None
+
+        # -------------------------------------------------
+        # Supabase側で更新されたセッションがあれば保存
+        # -------------------------------------------------
+
+        try:
+
+            current_session = (
+                auth_client
+                .auth
+                .get_session()
+            )
+
+            if (
                 current_session
-                .session
-                .refresh_token
+                and current_session.session
+            ):
+
+                new_access_token = (
+                    current_session
+                    .session
+                    .access_token
+                )
+
+                new_refresh_token = (
+                    current_session
+                    .session
+                    .refresh_token
+                )
+
+                if new_access_token:
+
+                    session["access_token"] = (
+                        new_access_token
+                    )
+
+                if new_refresh_token:
+
+                    session["refresh_token"] = (
+                        new_refresh_token
+                    )
+
+        except Exception as e:
+
+            print(
+                "session refresh warning:",
+                repr(e)
             )
 
         return user
@@ -221,28 +266,37 @@ def get_current_user():
 
 def get_profile(user_id):
 
-    result = (
-        db
-        .table("profiles")
-        .select(
-            "id,username,created_at,tutorial_completed"
-        )
-        .eq("id", user_id)
-        .execute()
-    )
+    try:
 
-    if result.data:
-        return result.data[0]
+        result = (
+            db
+            .table("profiles")
+            .select(
+                "id,username,created_at,tutorial_completed"
+            )
+            .eq(
+                "id",
+                user_id
+            )
+            .execute()
+        )
+
+        if result.data:
+
+            return result.data[0]
+
+    except Exception as e:
+
+        print(
+            "get_profile error:",
+            repr(e)
+        )
 
     return None
 
 
 # =========================================================
 # プロフィール作成 / 確認
-#
-# 戻り値:
-#   profile
-#   created = True なら今回初めて作成された
 # =========================================================
 
 def ensure_profile(user):
@@ -252,6 +306,7 @@ def ensure_profile(user):
     profile = get_profile(user_id)
 
     if profile:
+
         return profile, False
 
     metadata = (
@@ -272,41 +327,54 @@ def ensure_profile(user):
 
     username = str(username)[:100]
 
-    existing = (
-        db
-        .table("profiles")
-        .select("id")
-        .eq("username", username)
-        .execute()
-    )
+    try:
 
-    if existing.data:
-
-        username = (
-            username
-            + "_"
-            + user_id[:8]
+        existing = (
+            db
+            .table("profiles")
+            .select("id")
+            .eq(
+                "username",
+                username
+            )
+            .execute()
         )
 
-    result = (
-        db
-        .table("profiles")
-        .insert(
-            {
-                "id": user_id,
-                "username": username,
-                "tutorial_completed": False
-            }
-        )
-        .execute()
-    )
+        if existing.data:
 
-    if result.data:
-        return result.data[0], True
+            username = (
+                username
+                + "_"
+                + user_id[:8]
+            )
+
+        result = (
+            db
+            .table("profiles")
+            .insert(
+                {
+                    "id": user_id,
+                    "username": username,
+                    "tutorial_completed": False
+                }
+            )
+            .execute()
+        )
+
+        if result.data:
+
+            return result.data[0], True
+
+    except Exception as e:
+
+        print(
+            "ensure_profile insert error:",
+            repr(e)
+        )
 
     profile = get_profile(user_id)
 
-    return profile, True
+    return profile, False
 
 
 # =========================================================
@@ -318,21 +386,24 @@ def require_user():
     user = get_current_user()
 
     if not user:
+
         return None
 
-    ensure_profile(user)
+    profile, _ = ensure_profile(user)
+
+    if not profile:
+
+        print(
+            "require_user: profile could not be loaded"
+        )
+
+        return None
 
     return user
 
 
 # =========================================================
 # 初回ログイン後の移動先
-#
-# 新規ユーザー:
-#   契約 → チュートリアル → ホーム
-#
-# 既存ユーザー:
-#   ホーム
 # =========================================================
 
 def redirect_after_auth(
@@ -341,6 +412,12 @@ def redirect_after_auth(
 ):
 
     profile, created = ensure_profile(user)
+
+    if not profile:
+
+        return (
+            "プロフィールを作成できませんでした"
+        ), 500
 
     if newly_created or created:
 
@@ -378,6 +455,12 @@ def index():
         )
 
     profile, _ = ensure_profile(user)
+
+    if not profile:
+
+        return render_template(
+            "auth.html"
+        )
 
     if not profile.get(
         "tutorial_completed",
@@ -546,10 +629,6 @@ def register():
             "ユーザー名とパスワードを入力してください"
         ), 400
 
-    # -----------------------------------------------------
-    # メールアドレスとしてusernameを使用
-    # -----------------------------------------------------
-
     email = username
 
     try:
@@ -565,7 +644,8 @@ def register():
                     "password": password,
                     "options": {
                         "data": {
-                            "name": email.split("@")[0]
+                            "name":
+                                email.split("@")[0]
                         }
                     }
                 }
@@ -582,7 +662,7 @@ def register():
             ), 400
 
         # -------------------------------------------------
-        # セッションが即時発行された場合
+        # 即時セッション発行
         # -------------------------------------------------
 
         if auth_session:
@@ -599,11 +679,16 @@ def register():
                 user
             )
 
-            # Supabase Authのmetadataより
-            # 入力されたusernameを優先
+            if not profile:
+
+                return (
+                    "プロフィール作成に失敗しました"
+                ), 500
+
+            # 入力されたメールアドレスを
+            # usernameとして保存
             if (
                 username
-                and profile
                 and profile["username"] != username
             ):
 
@@ -613,7 +698,8 @@ def register():
                         "profiles"
                     ).update(
                         {
-                            "username": username
+                            "username":
+                                username
                         }
                     ).eq(
                         "id",
@@ -623,7 +709,7 @@ def register():
                 except Exception as e:
 
                     print(
-                        "profile username update error:",
+                        "username update warning:",
                         repr(e)
                     )
 
@@ -634,7 +720,7 @@ def register():
             )
 
         # -------------------------------------------------
-        # メール確認が必要な設定の場合
+        # メール確認が必要
         # -------------------------------------------------
 
         return (
@@ -709,12 +795,24 @@ def login():
                 "ログインできませんでした"
             ), 401
 
+        # -------------------------------------------------
+        # Flask Sessionへ保存
+        # -------------------------------------------------
+
         session["access_token"] = (
             auth_session.access_token
         )
 
         session["refresh_token"] = (
             auth_session.refresh_token
+        )
+
+        # セッションを確実に保存
+        session.modified = True
+
+        print(
+            "LOGIN SUCCESS:",
+            str(user.id)
         )
 
         return redirect_after_auth(
@@ -730,14 +828,13 @@ def login():
         )
 
         return (
-            "ログインに失敗しました"
+            "ログインに失敗しました: "
+            + str(e)
         ), 401
 
 
 # =========================================================
 # OAuth開始
-#
-# Google / Microsoft / GitHub
 # =========================================================
 
 @app.route(
@@ -862,6 +959,8 @@ def oauth_callback():
             auth_session.refresh_token
         )
 
+        session.modified = True
+
         if not user:
 
             user_response = (
@@ -899,8 +998,6 @@ def oauth_callback():
 
 # =========================================================
 # 契約画面
-#
-# 新規登録後のみここへ来る。
 # =========================================================
 
 @app.route(
@@ -915,6 +1012,10 @@ def terms():
         return redirect("/")
 
     profile, _ = ensure_profile(user)
+
+    if not profile:
+
+        return redirect("/")
 
     if profile.get(
         "tutorial_completed",
@@ -968,6 +1069,10 @@ def tutorial():
 
     profile, _ = ensure_profile(user)
 
+    if not profile:
+
+        return redirect("/")
+
     if profile.get(
         "tutorial_completed",
         False
@@ -997,24 +1102,24 @@ def complete_tutorial():
         return redirect("/")
 
     # -----------------------------------------------------
+    # 新規登録ユーザーの場合、
     # 契約同意済みか確認
     # -----------------------------------------------------
 
-    if not session.get(
-        "terms_accepted",
-        False
-    ) and session.get(
-        "new_registration",
-        False
+    if (
+        not session.get(
+            "terms_accepted",
+            False
+        )
+        and session.get(
+            "new_registration",
+            False
+        )
     ):
 
         return redirect(
             url_for("terms")
         )
-
-    # -----------------------------------------------------
-    # tutorial_completed = true
-    # -----------------------------------------------------
 
     (
         db
@@ -2263,6 +2368,5 @@ if __name__ == "__main__":
     socketio.run(
         app,
         host="0.0.0.0",
-        port=port,
-        allow_unsafe_werkzeug=True
+        port=port
     )
