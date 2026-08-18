@@ -7,12 +7,14 @@ from flask import (
     jsonify,
     url_for,
 )
+
 from flask_socketio import (
     SocketIO,
     emit,
     join_room,
     leave_room,
 )
+
 from werkzeug.security import (
     generate_password_hash,
     check_password_hash,
@@ -46,11 +48,14 @@ if os.environ.get("RENDER") == "true":
 
 # =========================================================
 # Socket.IO
+#
+# Eventletではなくthreadingを使用
 # =========================================================
 
 socketio = SocketIO(
     app,
-    cors_allowed_origins="*"
+    cors_allowed_origins="*",
+    async_mode="threading"
 )
 
 
@@ -59,9 +64,11 @@ socketio = SocketIO(
 # =========================================================
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
+
 SUPABASE_PUBLISHABLE_KEY = os.environ.get(
     "SUPABASE_PUBLISHABLE_KEY"
 )
+
 SUPABASE_SECRET_KEY = os.environ.get(
     "SUPABASE_SECRET_KEY"
 )
@@ -99,7 +106,7 @@ db = create_client(
 # =========================================================
 # Flask Session Storage
 #
-# Supabase OAuth PKCE用。
+# Supabase OAuth PKCE用
 #
 # gotrueのSyncSupportedStorageは使用しない。
 # =========================================================
@@ -107,15 +114,12 @@ db = create_client(
 class FlaskSessionStorage:
 
     def get_item(self, key):
-
         return session.get(key)
 
     def set_item(self, key, value):
-
         session[key] = value
 
     def remove_item(self, key):
-
         session.pop(key, None)
 
 
@@ -228,7 +232,6 @@ def get_profile(user_id):
     )
 
     if result.data:
-
         return result.data[0]
 
     return None
@@ -249,7 +252,6 @@ def ensure_profile(user):
     profile = get_profile(user_id)
 
     if profile:
-
         return profile, False
 
     metadata = (
@@ -300,7 +302,6 @@ def ensure_profile(user):
     )
 
     if result.data:
-
         return result.data[0], True
 
     profile = get_profile(user_id)
@@ -317,7 +318,6 @@ def require_user():
     user = get_current_user()
 
     if not user:
-
         return None
 
     ensure_profile(user)
@@ -335,7 +335,10 @@ def require_user():
 #   ホーム
 # =========================================================
 
-def redirect_after_auth(user, newly_created=False):
+def redirect_after_auth(
+    user,
+    newly_created=False
+):
 
     profile, created = ensure_profile(user)
 
@@ -617,8 +620,12 @@ def register():
                         str(user.id)
                     ).execute()
 
-                except Exception:
-                    pass
+                except Exception as e:
+
+                    print(
+                        "profile username update error:",
+                        repr(e)
+                    )
 
             session["new_registration"] = True
 
@@ -2256,5 +2263,6 @@ if __name__ == "__main__":
     socketio.run(
         app,
         host="0.0.0.0",
-        port=port
+        port=port,
+        allow_unsafe_werkzeug=True
     )
