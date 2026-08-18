@@ -7,12 +7,14 @@ from flask import (
     jsonify,
     url_for,
 )
+
 from flask_socketio import (
     SocketIO,
     emit,
     join_room,
     leave_room,
 )
+
 from werkzeug.security import (
     generate_password_hash,
     check_password_hash,
@@ -20,7 +22,6 @@ from werkzeug.security import (
 
 from supabase import create_client
 from supabase.client import ClientOptions
-
 
 import os
 import random
@@ -102,44 +103,12 @@ db = create_client(
 
 
 # =========================================================
-# Supabase Auth用セッションストレージ
-#
-# GitHub OAuthのPKCE verifier/sessionを
-# Flask sessionに保存する。
-# =========================================================
-
-class FlaskSessionStorage(SyncSupportedStorage):
-
-    def get_item(self, key: str):
-
-        return session.get(key)
-
-
-    def set_item(
-        self,
-        key: str,
-        value: str
-    ):
-
-        session[key] = value
-
-
-    def remove_item(self, key: str):
-
-        session.pop(
-            key,
-            None
-        )
-
-
-# =========================================================
 # Supabase Auth client
 # =========================================================
 
 def get_auth_client():
 
     options = ClientOptions(
-        storage=FlaskSessionStorage(),
         flow_type="pkce"
     )
 
@@ -171,7 +140,6 @@ def get_current_user():
 
         auth_client = get_auth_client()
 
-        # セッションを復元
         if refresh_token:
 
             auth_client.auth.set_session(
@@ -179,7 +147,6 @@ def get_current_user():
                 refresh_token
             )
 
-        # JWTをSupabase側で検証
         response = auth_client.auth.get_user(
             access_token
         )
@@ -189,12 +156,14 @@ def get_current_user():
         if not user:
             return None
 
-        # 更新されたセッション情報を保存
         current_session = (
             auth_client.auth.get_session()
         )
 
-        if current_session and current_session.session:
+        if (
+            current_session
+            and current_session.session
+        ):
 
             session["access_token"] = (
                 current_session.session.access_token
@@ -206,7 +175,12 @@ def get_current_user():
 
         return user
 
-    except Exception:
+    except Exception as e:
+
+        print(
+            "get_current_user error:",
+            repr(e)
+        )
 
         return None
 
@@ -223,7 +197,10 @@ def get_profile(user_id):
         .select(
             "id,username,created_at"
         )
-        .eq("id", user_id)
+        .eq(
+            "id",
+            user_id
+        )
         .execute()
     )
 
@@ -240,7 +217,9 @@ def get_profile(user_id):
 
 def ensure_profile(user):
 
-    user_id = str(user.id)
+    user_id = str(
+        user.id
+    )
 
     profile = get_profile(
         user_id
@@ -270,12 +249,14 @@ def ensure_profile(user):
         username
     )[:100]
 
-    # 同名ユーザーが存在する場合は少し変更
     existing = (
         db
         .table("profiles")
         .select("id")
-        .eq("username", username)
+        .eq(
+            "username",
+            username
+        )
         .execute()
     )
 
@@ -397,7 +378,6 @@ def index():
         )
 
         if not room_result.data:
-
             continue
 
         room = room_result.data[0]
@@ -500,8 +480,7 @@ def github_login():
             {
                 "provider": "github",
                 "options": {
-                    "redirect_to":
-                        redirect_url
+                    "redirect_to": redirect_url
                 }
             }
         )
@@ -606,7 +585,7 @@ def github_callback():
             ), 500
 
         # -------------------------------------------------
-        # profilesを作成
+        # profiles作成
         # -------------------------------------------------
 
         ensure_profile(
@@ -708,8 +687,6 @@ def get_room_by_code(
 
 # =========================================================
 # ルームID生成
-#
-# 10桁
 # =========================================================
 
 def generate_room_code():
@@ -890,11 +867,6 @@ def delete_room():
 
 # =========================================================
 # ルームパスワード設定
-#
-# ON/OFF → いつでも変更可能
-# パスワード変更 → 2時間制限
-#
-# OFFにしてもpassword_hashは消さない
 # =========================================================
 
 @app.route(
@@ -992,15 +964,9 @@ def set_room_password():
         )
     )
 
-    password_changed_at = (
-        settings.get(
-            "password_changed_at"
-        )
-    )
-
-    # =====================================================
+    # -----------------------------------------------------
     # OFF
-    # =====================================================
+    # -----------------------------------------------------
 
     if not enabled:
 
@@ -1030,11 +996,9 @@ def set_room_password():
             }
         )
 
-    # =====================================================
+    # -----------------------------------------------------
     # ON
-    #
-    # 以前のパスワードがあるならそれを使用
-    # =====================================================
+    # -----------------------------------------------------
 
     if old_password_hash:
 
@@ -1064,9 +1028,9 @@ def set_room_password():
             }
         )
 
-    # =====================================================
+    # -----------------------------------------------------
     # 初回パスワード設定
-    # =====================================================
+    # -----------------------------------------------------
 
     if not new_password:
 
@@ -1115,8 +1079,6 @@ def set_room_password():
 
 # =========================================================
 # パスワード変更
-#
-# 2時間に1回
 # =========================================================
 
 @app.route(
@@ -1212,10 +1174,6 @@ def change_room_password():
         )
     )
 
-    # =====================================================
-    # 2時間制限
-    # =====================================================
-
     if changed_at:
 
         try:
@@ -1257,10 +1215,6 @@ def change_room_password():
         except Exception:
 
             pass
-
-    # =====================================================
-    # パスワード変更
-    # =====================================================
 
     now = datetime.now(
         timezone.utc
@@ -1356,10 +1310,6 @@ def check_room_password():
         user.id
     )
 
-    # -----------------------------------------------------
-    # すでに履歴にある場合
-    # -----------------------------------------------------
-
     member_result = (
         db
         .table("room_members")
@@ -1382,10 +1332,6 @@ def check_room_password():
                 "ok": True
             }
         )
-
-    # -----------------------------------------------------
-    # 設定取得
-    # -----------------------------------------------------
 
     settings_result = (
         db
@@ -1426,10 +1372,6 @@ def check_room_password():
         )
     )
 
-    # -----------------------------------------------------
-    # OFF
-    # -----------------------------------------------------
-
     if not enabled:
 
         return jsonify(
@@ -1438,10 +1380,6 @@ def check_room_password():
             }
         )
 
-    # -----------------------------------------------------
-    # パスワードなし
-    # -----------------------------------------------------
-
     if not password_hash:
 
         return jsonify(
@@ -1449,10 +1387,6 @@ def check_room_password():
                 "ok": False
             }
         )
-
-    # -----------------------------------------------------
-    # 確認
-    # -----------------------------------------------------
 
     if check_password_hash(
         password_hash,
@@ -1484,7 +1418,6 @@ def create_room():
     user = require_user()
 
     if not user:
-
         return
 
     user_id = str(
@@ -1494,10 +1427,6 @@ def create_room():
     room_code = (
         generate_room_code()
     )
-
-    # -----------------------------------------------------
-    # rooms
-    # -----------------------------------------------------
 
     result = (
         db
@@ -1529,10 +1458,6 @@ def create_room():
         room["id"]
     )
 
-    # -----------------------------------------------------
-    # room_settings
-    # -----------------------------------------------------
-
     db.table(
         "room_settings"
     ).insert(
@@ -1544,10 +1469,6 @@ def create_room():
         }
     ).execute()
 
-    # -----------------------------------------------------
-    # room_members
-    # -----------------------------------------------------
-
     db.table(
         "room_members"
     ).insert(
@@ -1557,10 +1478,6 @@ def create_room():
             "note": ""
         }
     ).execute()
-
-    # -----------------------------------------------------
-    # Socket.IO
-    # -----------------------------------------------------
 
     join_room(
         room_code
@@ -1588,7 +1505,6 @@ def join_room_by_id(
     user = require_user()
 
     if not user:
-
         return
 
     room_code = str(
@@ -1601,10 +1517,6 @@ def join_room_by_id(
     user_id = str(
         user.id
     )
-
-    # -----------------------------------------------------
-    # 10桁チェック
-    # -----------------------------------------------------
 
     if (
         not room_code.isdigit()
@@ -1620,10 +1532,6 @@ def join_room_by_id(
         )
 
         return
-
-    # -----------------------------------------------------
-    # ルーム検索
-    # -----------------------------------------------------
 
     room = get_room_by_code(
         room_code
@@ -1644,10 +1552,6 @@ def join_room_by_id(
     room_uuid = str(
         room["id"]
     )
-
-    # -----------------------------------------------------
-    # メンバー登録
-    # -----------------------------------------------------
 
     member_result = (
         db
@@ -1676,10 +1580,6 @@ def join_room_by_id(
             }
         ).execute()
 
-    # -----------------------------------------------------
-    # Socket.IO
-    # -----------------------------------------------------
-
     join_room(
         room_code
     )
@@ -1690,10 +1590,6 @@ def join_room_by_id(
             "room": room_code
         }
     )
-
-    # -----------------------------------------------------
-    # 過去メッセージ
-    # -----------------------------------------------------
 
     message_result = (
         db
@@ -1777,7 +1673,6 @@ def handle_message(
     user = require_user()
 
     if not user:
-
         return
 
     room_code = str(
@@ -1795,7 +1690,6 @@ def handle_message(
     ).strip()
 
     if not message:
-
         return
 
     room = get_room_by_code(
@@ -1803,7 +1697,6 @@ def handle_message(
     )
 
     if not room:
-
         return
 
     room_uuid = str(
@@ -1813,10 +1706,6 @@ def handle_message(
     user_id = str(
         user.id
     )
-
-    # -----------------------------------------------------
-    # メンバー確認
-    # -----------------------------------------------------
 
     member_result = (
         db
@@ -1834,12 +1723,7 @@ def handle_message(
     )
 
     if not member_result.data:
-
         return
-
-    # -----------------------------------------------------
-    # Supabase保存
-    # -----------------------------------------------------
 
     db.table(
         "messages"
@@ -1850,10 +1734,6 @@ def handle_message(
             "message": message
         }
     ).execute()
-
-    # -----------------------------------------------------
-    # リアルタイム送信
-    # -----------------------------------------------------
 
     profile = ensure_profile(
         user
@@ -1885,7 +1765,6 @@ def call_started(
     user = require_user()
 
     if not user:
-
         return
 
     room = str(
@@ -1925,7 +1804,6 @@ def call_ended(
     user = require_user()
 
     if not user:
-
         return
 
     room = str(
@@ -1963,19 +1841,13 @@ def add_creator_log(
     user = require_user()
 
     if not user:
-
         return
 
     profile = ensure_profile(
         user
     )
 
-    # -----------------------------------------------------
-    # 開発者限定
-    # -----------------------------------------------------
-
     if profile["username"] != "開発者":
-
         return
 
     message = str(
@@ -1986,12 +1858,7 @@ def add_creator_log(
     ).strip()
 
     if not message:
-
         return
-
-    # -----------------------------------------------------
-    # 保存
-    # -----------------------------------------------------
 
     result = (
         db
@@ -2008,14 +1875,9 @@ def add_creator_log(
     )
 
     if not result.data:
-
         return
 
     log = result.data[0]
-
-    # -----------------------------------------------------
-    # 全員へ通知
-    # -----------------------------------------------------
 
     socketio.emit(
         "new_creator_log",
@@ -2042,7 +1904,6 @@ def delete_creator_log(
     user = require_user()
 
     if not user:
-
         return
 
     profile = ensure_profile(
@@ -2050,7 +1911,6 @@ def delete_creator_log(
     )
 
     if profile["username"] != "開発者":
-
         return
 
     try:
