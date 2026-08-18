@@ -1,11 +1,30 @@
-from flask import Flask, render_template, request, redirect, session, jsonify
-from flask_socketio import SocketIO, emit, join_room, leave_room
-from werkzeug.security import generate_password_hash, check_password_hash
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    session,
+    jsonify,
+    url_for,
+)
+from flask_socketio import (
+    SocketIO,
+    emit,
+    join_room,
+    leave_room,
+)
+from werkzeug.security import (
+    generate_password_hash,
+    check_password_hash,
+)
 
 from supabase import create_client
+from supabase.client import ClientOptions
 
-import random
+from gotrue import SyncSupportedStorage
+
 import os
+import random
 from datetime import datetime, timezone
 
 
@@ -15,81 +34,396 @@ from datetime import datetime, timezone
 
 app = Flask(__name__)
 
-app.config["SECRET_KEY"] = "secret!"
+app.config["SECRET_KEY"] = os.environ.get(
+    "FLASK_SECRET_KEY",
+    "change-this-secret-key"
+)
 
-socketio = SocketIO(app)
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+if os.environ.get("RENDER") == "true":
+    app.config["SESSION_COOKIE_SECURE"] = True
 
 
 # =========================================================
-# Supabase
+# Socket.IO
 # =========================================================
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_SECRET_KEY")
-
-if not SUPABASE_URL or not SUPABASE_KEY:
-    raise RuntimeError(
-        "SUPABASE_URL または SUPABASE_SECRET_KEY が設定されていません"
-    )
-
-supabase = create_client(
-    SUPABASE_URL,
-    SUPABASE_KEY
+socketio = SocketIO(
+    app,
+    cors_allowed_origins="*"
 )
 
 
 # =========================================================
-# メモリ上のルーム参加者
+# Environment variables
+# =========================================================
+
+SUPABASE_URL = os.environ.get(
+    "SUPABASE_URL"
+)
+
+SUPABASE_PUBLISHABLE_KEY = os.environ.get(
+    "SUPABASE_PUBLISHABLE_KEY"
+)
+
+SUPABASE_SECRET_KEY = os.environ.get(
+    "SUPABASE_SECRET_KEY"
+)
+
+
+if not SUPABASE_URL:
+    raise RuntimeError(
+        "SUPABASE_URL が設定されていません"
+    )
+
+if not SUPABASE_PUBLISHABLE_KEY:
+    raise RuntimeError(
+        "SUPABASE_PUBLISHABLE_KEY が設定されていません"
+    )
+
+if not SUPABASE_SECRET_KEY:
+    raise RuntimeError(
+        "SUPABASE_SECRET_KEY が設定されていません"
+    )
+
+
+# =========================================================
+# Supabase DB client
 #
-# ※ルームそのものはSupabaseに保存する
+# サーバー側のDB操作専用。
+# Secret Keyはブラウザには出さない。
 # =========================================================
 
-rooms = {}
+db = create_client(
+    SUPABASE_URL,
+    SUPABASE_SECRET_KEY
+)
 
 
 # =========================================================
-# index
+# Supabase Auth用セッションストレージ
+#
+# GitHub OAuthのPKCE verifier/sessionを
+# Flask sessionに保存する。
+# =========================================================
+
+class FlaskSessionStorage(SyncSupportedStorage):
+
+    def get_item(self, key: str):
+
+        return session.get(key)
+
+
+    def set_item(
+        self,
+        key: str,
+        value: str
+    ):
+
+        session[key] = value
+
+
+    def remove_item(self, key: str):
+
+        session.pop(
+            key,
+            None
+        )
+
+
+# =========================================================
+# Supabase Auth client
+# =========================================================
+
+def get_auth_client():
+
+    options = ClientOptions(
+        storage=FlaskSessionStorage(),
+        flow_type="pkce"
+    )
+
+    return create_client(
+        SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY,
+        options=options
+    )
+
+
+# =========================================================
+# 現在ログインしているSupabaseユーザー
+# =========================================================
+
+def get_current_user():
+
+    access_token = session.get(
+        "access_token"
+    )
+
+    refresh_token = session.get(
+        "refresh_token"
+    )
+
+    if not access_token:
+        return None
+
+    try:
+
+        auth_client = get_auth_client()
+
+        # セッションを復元
+        if refresh_token:
+
+            auth_client.auth.set_session(
+                access_token,
+                refresh_token
+            )
+
+        # JWTをSupabase側で検証
+        response = auth_client.auth.get_user(
+            access_token
+        )
+
+        user = response.user
+
+        if not user:
+            return None
+
+        # 更新されたセッション情報を保存
+        current_session = (
+            auth_client.auth.get_session()
+        )
+
+        if current_session and current_session.session:
+
+            session["access_token"] = (
+                current_session.session.access_token
+            )
+
+            session["refresh_token"] = (
+                current_session.session.refresh_token
+            )
+
+        return user
+
+    except Exception:
+
+        return None
+
+
+# =========================================================
+# プロフィール取得
+# =========================================================
+
+def get_profile(user_id):
+
+    result = (
+        db
+        .table("profiles")
+        .select(
+            "id,username,created_at"
+        )
+        .eq("id", user_id)
+        .execute()
+    )
+
+    if result.data:
+
+        return result.data[0]
+
+    return None
+
+
+# =========================================================
+# プロフィール作成
+# =========================================================
+
+def ensure_profile(user):
+
+    user_id = str(user.id)
+
+    profile = get_profile(
+        user_id
+    )
+
+    if profile:
+
+        return profile
+
+    metadata = (
+        user.user_metadata
+        or {}
+    )
+
+    username = (
+        metadata.get("user_name")
+        or metadata.get("preferred_username")
+        or metadata.get("name")
+        or (
+            user.email.split("@")[0]
+            if user.email
+            else "User"
+        )
+    )
+
+    username = str(
+        username
+    )[:100]
+
+    # 同名ユーザーが存在する場合は少し変更
+    existing = (
+        db
+        .table("profiles")
+        .select("id")
+        .eq("username", username)
+        .execute()
+    )
+
+    if existing.data:
+
+        username = (
+            username
+            + "_"
+            + user_id[:8]
+        )
+
+    result = (
+        db
+        .table("profiles")
+        .insert(
+            {
+                "id": user_id,
+                "username": username
+            }
+        )
+        .execute()
+    )
+
+    if result.data:
+
+        return result.data[0]
+
+    return get_profile(
+        user_id
+    )
+
+
+# =========================================================
+# ログイン必須チェック
+# =========================================================
+
+def require_user():
+
+    user = get_current_user()
+
+    if not user:
+
+        return None
+
+    ensure_profile(
+        user
+    )
+
+    return user
+
+
+# =========================================================
+# トップページ
 # =========================================================
 
 @app.route("/")
 def index():
 
-    if "username" not in session:
-        return render_template("auth.html")
+    user = get_current_user()
 
-    username = session["username"]
+    if not user:
 
-    # -----------------------------------------
+        return render_template(
+            "auth.html"
+        )
+
+    profile = ensure_profile(
+        user
+    )
+
+    username = profile["username"]
+
+    user_id = str(
+        user.id
+    )
+
+    # -----------------------------------------------------
     # ルーム履歴
-    # -----------------------------------------
+    # -----------------------------------------------------
 
     member_result = (
-        supabase
+        db
         .table("room_members")
-        .select("room_id,note")
-        .eq("username", username)
+        .select(
+            "room_id,note,joined_at"
+        )
+        .eq(
+            "user_id",
+            user_id
+        )
+        .order(
+            "joined_at",
+            desc=True
+        )
         .execute()
     )
 
     room_history = []
 
-    for row in member_result.data or []:
+    for member in (
+        member_result.data or []
+    ):
 
-        room_id = row["room_id"]
+        room_uuid = str(
+            member["room_id"]
+        )
 
         room_result = (
-            supabase
+            db
             .table("rooms")
-            .select("password_enabled")
-            .eq("room_id", room_id)
+            .select(
+                "id,room_code"
+            )
+            .eq(
+                "id",
+                room_uuid
+            )
+            .execute()
+        )
+
+        if not room_result.data:
+
+            continue
+
+        room = room_result.data[0]
+
+        settings_result = (
+            db
+            .table("room_settings")
+            .select(
+                "password_enabled"
+            )
+            .eq(
+                "room_id",
+                room_uuid
+            )
             .execute()
         )
 
         locked = False
 
-        if room_result.data:
+        if settings_result.data:
+
             locked = bool(
-                room_result.data[0].get(
+                settings_result
+                .data[0]
+                .get(
                     "password_enabled",
                     False
                 )
@@ -97,27 +431,37 @@ def index():
 
         room_history.append(
             (
-                room_id,
-                row.get("note", ""),
+                room["room_code"],
+                member.get(
+                    "note",
+                    ""
+                ),
                 locked
             )
         )
 
-    # -----------------------------------------
+    # -----------------------------------------------------
     # CREATERログ
-    # -----------------------------------------
+    # -----------------------------------------------------
 
     creator_result = (
-        supabase
+        db
         .table("creator_logs")
-        .select("id,message")
-        .order("id", desc=True)
+        .select(
+            "id,message,created_at"
+        )
+        .order(
+            "id",
+            desc=True
+        )
         .execute()
     )
 
     creator_logs = []
 
-    for row in creator_result.data or []:
+    for row in (
+        creator_result.data or []
+    ):
 
         creator_logs.append(
             (
@@ -135,566 +479,245 @@ def index():
 
 
 # =========================================================
+# GitHubログイン開始
+# =========================================================
+
+@app.route(
+    "/auth/github"
+)
+def github_login():
+
+    auth_client = get_auth_client()
+
+    redirect_url = url_for(
+        "github_callback",
+        _external=True
+    )
+
+    response = (
+        auth_client
+        .auth
+        .sign_in_with_oauth(
+            {
+                "provider": "github",
+                "options": {
+                    "redirect_to":
+                        redirect_url
+                }
+            }
+        )
+    )
+
+    return redirect(
+        response.url
+    )
+
+
+# =========================================================
+# GitHub OAuth callback
+# =========================================================
+
+@app.route(
+    "/auth/callback"
+)
+def github_callback():
+
+    error = request.args.get(
+        "error"
+    )
+
+    if error:
+
+        description = request.args.get(
+            "error_description",
+            error
+        )
+
+        return (
+            "GitHubログインに失敗しました: "
+            + description
+        ), 400
+
+    code = request.args.get(
+        "code"
+    )
+
+    if not code:
+
+        return (
+            "認証コードがありません"
+        ), 400
+
+    try:
+
+        auth_client = get_auth_client()
+
+        response = (
+            auth_client
+            .auth
+            .exchange_code_for_session(
+                {
+                    "auth_code": code
+                }
+            )
+        )
+
+        auth_session = response.session
+
+        if not auth_session:
+
+            return (
+                "Supabase Authセッションを取得できませんでした"
+            ), 500
+
+        # -------------------------------------------------
+        # Flask sessionへ保存
+        # -------------------------------------------------
+
+        session["access_token"] = (
+            auth_session.access_token
+        )
+
+        session["refresh_token"] = (
+            auth_session.refresh_token
+        )
+
+        # -------------------------------------------------
+        # ユーザー取得
+        # -------------------------------------------------
+
+        user = response.user
+
+        if not user:
+
+            user_response = (
+                auth_client
+                .auth
+                .get_user(
+                    auth_session.access_token
+                )
+            )
+
+            user = user_response.user
+
+        if not user:
+
+            return (
+                "ユーザー情報を取得できませんでした"
+            ), 500
+
+        # -------------------------------------------------
+        # profilesを作成
+        # -------------------------------------------------
+
+        ensure_profile(
+            user
+        )
+
+        return redirect(
+            "/"
+        )
+
+    except Exception as e:
+
+        print(
+            "GitHub callback error:",
+            repr(e)
+        )
+
+        return (
+            "GitHubログイン処理でエラーが発生しました"
+        ), 500
+
+
+# =========================================================
+# ログアウト
+# =========================================================
+
+@app.route(
+    "/logout"
+)
+def logout():
+
+    try:
+
+        auth_client = get_auth_client()
+
+        auth_client.auth.sign_out()
+
+    except Exception:
+
+        pass
+
+    session.clear()
+
+    return redirect(
+        "/"
+    )
+
+
+# =========================================================
 # 通話ページ
 # =========================================================
 
-@app.route("/call/<room_id>")
-def call(room_id):
+@app.route(
+    "/call/<room_code>"
+)
+def call(room_code):
 
-    if "username" not in session:
-        return redirect("/")
+    user = require_user()
+
+    if not user:
+
+        return redirect(
+            "/"
+        )
 
     return render_template(
         "call.html",
-        room_id=room_id
+        room_id=room_code
     )
 
 
 # =========================================================
-# register
+# ルームコードからroom UUIDを取得
 # =========================================================
 
-@app.route("/register", methods=["POST"])
-def register():
-
-    username = request.form["username"]
-    password = request.form["password"]
-
-    # -----------------------------------------
-    # ユーザー存在確認
-    # -----------------------------------------
+def get_room_by_code(
+    room_code
+):
 
     result = (
-        supabase
-        .table("users")
-        .select("username")
-        .eq("username", username)
-        .execute()
-    )
-
-    if result.data:
-
-        return "そのユーザーは既に存在します"
-
-    # -----------------------------------------
-    # パスワードハッシュ化
-    # -----------------------------------------
-
-    password_hash = generate_password_hash(password)
-
-    # -----------------------------------------
-    # 保存
-    # -----------------------------------------
-
-    supabase.table("users").insert(
-        {
-            "username": username,
-            "password": password_hash
-        }
-    ).execute()
-
-    session["username"] = username
-
-    return redirect("/")
-
-
-# =========================================================
-# login
-# =========================================================
-
-@app.route("/login", methods=["POST"])
-def login():
-
-    username = request.form["username"]
-    password = request.form["password"]
-
-    result = (
-        supabase
-        .table("users")
-        .select("password")
-        .eq("username", username)
+        db
+        .table("rooms")
+        .select(
+            "id,room_code,created_by,created_at"
+        )
+        .eq(
+            "room_code",
+            room_code
+        )
         .execute()
     )
 
     if not result.data:
 
-        return "ユーザーが存在しません"
+        return None
 
-    stored_password = result.data[0]["password"]
-
-    if not check_password_hash(
-        stored_password,
-        password
-    ):
-
-        return "パスワードが違います"
-
-    session["username"] = username
-
-    return redirect("/")
+    return result.data[0]
 
 
 # =========================================================
-# logout
-# =========================================================
-
-@app.route("/logout")
-def logout():
-
-    session.pop("username", None)
-
-    return redirect("/")
-
-
-# =========================================================
-# メモ保存
-# =========================================================
-
-@app.route("/save_note", methods=["POST"])
-def save_note():
-
-    if "username" not in session:
-        return jsonify({"status": "error"}), 401
-
-    data = request.get_json()
-
-    room = data["room"]
-    note = data["note"]
-
-    username = session["username"]
-
-    (
-        supabase
-        .table("room_members")
-        .update(
-            {
-                "note": note
-            }
-        )
-        .eq("room_id", room)
-        .eq("username", username)
-        .execute()
-    )
-
-    return jsonify({
-        "status": "ok"
-    })
-
-
-# =========================================================
-# 履歴削除
-# =========================================================
-
-@app.route("/delete_room", methods=["POST"])
-def delete_room():
-
-    if "username" not in session:
-        return jsonify({"status": "error"}), 401
-
-    data = request.get_json()
-
-    room = data["room"]
-
-    username = session["username"]
-
-    (
-        supabase
-        .table("room_members")
-        .delete()
-        .eq("room_id", room)
-        .eq("username", username)
-        .execute()
-    )
-
-    return jsonify({
-        "status": "ok"
-    })
-
-
-# =========================================================
-# ルームパスワード設定
+# ルームID生成
 #
-# ON / OFF       → いつでも変更可能
-# パスワード変更 → 2時間に1回
-#
-# OFFにしてもパスワード自体は保存しておく
+# 10桁
 # =========================================================
 
-@app.route("/set_room_password", methods=["POST"])
-def set_room_password():
-
-    if "username" not in session:
-        return jsonify({
-            "status": "error",
-            "message": "ログインしてください"
-        }), 401
-
-    data = request.get_json()
-
-    room = data["room"]
-    enabled = bool(data.get("enabled", False))
-    new_password = data.get("password", "")
-
-    # -----------------------------------------
-    # ルーム取得
-    # -----------------------------------------
-
-    result = (
-        supabase
-        .table("rooms")
-        .select(
-            "password_enabled,"
-            "password,"
-            "password_changed_at"
-        )
-        .eq("room_id", room)
-        .execute()
-    )
-
-    if not result.data:
-
-        return jsonify({
-            "status": "error",
-            "message": "ルームが存在しません"
-        }), 404
-
-    room_data = result.data[0]
-
-    old_enabled = bool(
-        room_data.get(
-            "password_enabled",
-            False
-        )
-    )
-
-    old_password = room_data.get(
-        "password"
-    )
-
-    password_changed_at = room_data.get(
-        "password_changed_at"
-    )
-
-    # =====================================================
-    # ON / OFFだけ変更する場合
-    # =====================================================
-
-    # OFF
-    if not enabled:
-
-        (
-            supabase
-            .table("rooms")
-            .update(
-                {
-                    "password_enabled": False
-                }
-            )
-            .eq("room_id", room)
-            .execute()
-        )
-
-        return jsonify({
-            "status": "ok",
-            "password_changed": False
-        })
-
-    # =====================================================
-    # ONにする
-    # =====================================================
-
-    # すでにパスワードが存在する場合
-    # → 前のパスワードをそのまま使用
-    if old_password:
-
-        (
-            supabase
-            .table("rooms")
-            .update(
-                {
-                    "password_enabled": True
-                }
-            )
-            .eq("room_id", room)
-            .execute()
-        )
-
-        return jsonify({
-            "status": "ok",
-            "password_changed": False
-        })
-
-    # =====================================================
-    # 初めてパスワードを設定する
-    # =====================================================
-
-    if not new_password:
-
-        return jsonify({
-            "status": "error",
-            "message": "初回はパスワードを入力してください"
-        }), 400
-
-    now = datetime.now(timezone.utc)
-
-    (
-        supabase
-        .table("rooms")
-        .update(
-            {
-                "password_enabled": True,
-                "password": generate_password_hash(
-                    new_password
-                ),
-                "password_changed_at": now.isoformat()
-            }
-        )
-        .eq("room_id", room)
-        .execute()
-    )
-
-    return jsonify({
-        "status": "ok",
-        "password_changed": True
-    })
-
-
-# =========================================================
-# パスワード変更専用
-#
-# 2時間に1回
-# =========================================================
-
-@app.route("/change_room_password", methods=["POST"])
-def change_room_password():
-
-    if "username" not in session:
-        return jsonify({
-            "status": "error"
-        }), 401
-
-    data = request.get_json()
-
-    room = data["room"]
-    new_password = data.get("password", "")
-
-    if not new_password:
-
-        return jsonify({
-            "status": "error",
-            "message": "パスワードを入力してください"
-        }), 400
-
-    result = (
-        supabase
-        .table("rooms")
-        .select(
-            "password_changed_at"
-        )
-        .eq("room_id", room)
-        .execute()
-    )
-
-    if not result.data:
-
-        return jsonify({
-            "status": "error",
-            "message": "ルームが存在しません"
-        }), 404
-
-    password_changed_at = result.data[0].get(
-        "password_changed_at"
-    )
-
-    # -----------------------------------------
-    # 2時間制限
-    # -----------------------------------------
-
-    if password_changed_at:
-
-        try:
-
-            old_time = datetime.fromisoformat(
-                password_changed_at.replace(
-                    "Z",
-                    "+00:00"
-                )
-            )
-
-            now = datetime.now(timezone.utc)
-
-            elapsed_seconds = (
-                now - old_time
-            ).total_seconds()
-
-            if elapsed_seconds < 7200:
-
-                remaining = int(
-                    7200 - elapsed_seconds
-                )
-
-                minutes = remaining // 60
-
-                return jsonify({
-                    "status": "error",
-                    "message":
-                        f"パスワード変更は"
-                        f"あと約{minutes}分後です"
-                }), 429
-
-        except Exception:
-
-            pass
-
-    # -----------------------------------------
-    # パスワード変更
-    # -----------------------------------------
-
-    now = datetime.now(timezone.utc)
-
-    (
-        supabase
-        .table("rooms")
-        .update(
-            {
-                "password": generate_password_hash(
-                    new_password
-                ),
-                "password_changed_at":
-                    now.isoformat()
-            }
-        )
-        .eq("room_id", room)
-        .execute()
-    )
-
-    return jsonify({
-        "status": "ok",
-        "message": "パスワードを変更しました"
-    })
-
-
-# =========================================================
-# 参加前パスワード確認
-# =========================================================
-
-@app.route("/check_room_password", methods=["POST"])
-def check_room_password():
-
-    if "username" not in session:
-        return jsonify({
-            "ok": False
-        }), 401
-
-    data = request.get_json()
-
-    room = data["room"]
-    password = data.get(
-        "password",
-        ""
-    )
-
-    username = session["username"]
-
-    # -----------------------------------------
-    # すでに履歴にあるか
-    # -----------------------------------------
-
-    member_result = (
-        supabase
-        .table("room_members")
-        .select("room_id")
-        .eq("room_id", room)
-        .eq("username", username)
-        .execute()
-    )
-
-    if member_result.data:
-
-        return jsonify({
-            "ok": True
-        })
-
-    # -----------------------------------------
-    # ルーム設定
-    # -----------------------------------------
-
-    room_result = (
-        supabase
-        .table("rooms")
-        .select(
-            "password_enabled,password"
-        )
-        .eq("room_id", room)
-        .execute()
-    )
-
-    if not room_result.data:
-
-        return jsonify({
-            "ok": True
-        })
-
-    room_data = room_result.data[0]
-
-    enabled = bool(
-        room_data.get(
-            "password_enabled",
-            False
-        )
-    )
-
-    real_password = room_data.get(
-        "password"
-    )
-
-    # -----------------------------------------
-    # OFF
-    # -----------------------------------------
-
-    if not enabled:
-
-        return jsonify({
-            "ok": True
-        })
-
-    # -----------------------------------------
-    # パスワード未設定
-    # -----------------------------------------
-
-    if not real_password:
-
-        return jsonify({
-            "ok": False
-        })
-
-    # -----------------------------------------
-    # パスワード確認
-    # -----------------------------------------
-
-    if check_password_hash(
-        real_password,
-        password
-    ):
-
-        return jsonify({
-            "ok": True
-        })
-
-    return jsonify({
-        "ok": False
-    })
-
-
-# =========================================================
-# 10桁ルームID生成
-# =========================================================
-
-def generate_room_id():
+def generate_room_code():
 
     while True:
 
-        room_id = str(
+        room_code = str(
             random.randint(
                 1000000000,
                 9999999999
@@ -702,76 +725,852 @@ def generate_room_id():
         )
 
         result = (
-            supabase
+            db
             .table("rooms")
-            .select("room_id")
-            .eq("room_id", room_id)
+            .select("id")
+            .eq(
+                "room_code",
+                room_code
+            )
             .execute()
         )
 
         if not result.data:
 
-            rooms.setdefault(
-                room_id,
-                []
+            return room_code
+
+
+# =========================================================
+# メモ保存
+# =========================================================
+
+@app.route(
+    "/save_note",
+    methods=["POST"]
+)
+def save_note():
+
+    user = require_user()
+
+    if not user:
+
+        return jsonify(
+            {
+                "status": "error",
+                "message":
+                    "ログインしてください"
+            }
+        ), 401
+
+    data = (
+        request.get_json()
+        or {}
+    )
+
+    room_code = str(
+        data.get(
+            "room",
+            ""
+        )
+    )
+
+    note = str(
+        data.get(
+            "note",
+            ""
+        )
+    )
+
+    room = get_room_by_code(
+        room_code
+    )
+
+    if not room:
+
+        return jsonify(
+            {
+                "status": "error",
+                "message":
+                    "ルームが存在しません"
+            }
+        ), 404
+
+    (
+        db
+        .table("room_members")
+        .update(
+            {
+                "note": note
+            }
+        )
+        .eq(
+            "room_id",
+            room["id"]
+        )
+        .eq(
+            "user_id",
+            str(user.id)
+        )
+        .execute()
+    )
+
+    return jsonify(
+        {
+            "status": "ok"
+        }
+    )
+
+
+# =========================================================
+# 履歴削除
+# =========================================================
+
+@app.route(
+    "/delete_room",
+    methods=["POST"]
+)
+def delete_room():
+
+    user = require_user()
+
+    if not user:
+
+        return jsonify(
+            {
+                "status": "error"
+            }
+        ), 401
+
+    data = (
+        request.get_json()
+        or {}
+    )
+
+    room_code = str(
+        data.get(
+            "room",
+            ""
+        )
+    )
+
+    room = get_room_by_code(
+        room_code
+    )
+
+    if not room:
+
+        return jsonify(
+            {
+                "status": "error",
+                "message":
+                    "ルームが存在しません"
+            }
+        ), 404
+
+    (
+        db
+        .table("room_members")
+        .delete()
+        .eq(
+            "room_id",
+            room["id"]
+        )
+        .eq(
+            "user_id",
+            str(user.id)
+        )
+        .execute()
+    )
+
+    return jsonify(
+        {
+            "status": "ok"
+        }
+    )
+
+
+# =========================================================
+# ルームパスワード設定
+#
+# ON/OFF → いつでも変更可能
+# パスワード変更 → 2時間制限
+#
+# OFFにしてもpassword_hashは消さない
+# =========================================================
+
+@app.route(
+    "/set_room_password",
+    methods=["POST"]
+)
+def set_room_password():
+
+    user = require_user()
+
+    if not user:
+
+        return jsonify(
+            {
+                "status": "error",
+                "message":
+                    "ログインしてください"
+            }
+        ), 401
+
+    data = (
+        request.get_json()
+        or {}
+    )
+
+    room_code = str(
+        data.get(
+            "room",
+            ""
+        )
+    )
+
+    enabled = bool(
+        data.get(
+            "enabled",
+            False
+        )
+    )
+
+    new_password = str(
+        data.get(
+            "password",
+            ""
+        )
+    )
+
+    room = get_room_by_code(
+        room_code
+    )
+
+    if not room:
+
+        return jsonify(
+            {
+                "status": "error",
+                "message":
+                    "ルームが存在しません"
+            }
+        ), 404
+
+    room_uuid = str(
+        room["id"]
+    )
+
+    settings_result = (
+        db
+        .table("room_settings")
+        .select(
+            "password_enabled,"
+            "password_hash,"
+            "password_changed_at"
+        )
+        .eq(
+            "room_id",
+            room_uuid
+        )
+        .execute()
+    )
+
+    if settings_result.data:
+
+        settings = settings_result.data[0]
+
+    else:
+
+        settings = {
+            "password_enabled": False,
+            "password_hash": None,
+            "password_changed_at": None
+        }
+
+    old_password_hash = (
+        settings.get(
+            "password_hash"
+        )
+    )
+
+    password_changed_at = (
+        settings.get(
+            "password_changed_at"
+        )
+    )
+
+    # =====================================================
+    # OFF
+    # =====================================================
+
+    if not enabled:
+
+        (
+            db
+            .table("room_settings")
+            .update(
+                {
+                    "password_enabled": False,
+                    "updated_at":
+                        datetime.now(
+                            timezone.utc
+                        ).isoformat()
+                }
+            )
+            .eq(
+                "room_id",
+                room_uuid
+            )
+            .execute()
+        )
+
+        return jsonify(
+            {
+                "status": "ok",
+                "password_changed": False
+            }
+        )
+
+    # =====================================================
+    # ON
+    #
+    # 以前のパスワードがあるならそれを使用
+    # =====================================================
+
+    if old_password_hash:
+
+        (
+            db
+            .table("room_settings")
+            .update(
+                {
+                    "password_enabled": True,
+                    "updated_at":
+                        datetime.now(
+                            timezone.utc
+                        ).isoformat()
+                }
+            )
+            .eq(
+                "room_id",
+                room_uuid
+            )
+            .execute()
+        )
+
+        return jsonify(
+            {
+                "status": "ok",
+                "password_changed": False
+            }
+        )
+
+    # =====================================================
+    # 初回パスワード設定
+    # =====================================================
+
+    if not new_password:
+
+        return jsonify(
+            {
+                "status": "error",
+                "message":
+                    "初回はパスワードを入力してください"
+            }
+        ), 400
+
+    now = datetime.now(
+        timezone.utc
+    )
+
+    (
+        db
+        .table("room_settings")
+        .update(
+            {
+                "password_enabled": True,
+                "password_hash":
+                    generate_password_hash(
+                        new_password
+                    ),
+                "password_changed_at":
+                    now.isoformat(),
+                "updated_at":
+                    now.isoformat()
+            }
+        )
+        .eq(
+            "room_id",
+            room_uuid
+        )
+        .execute()
+    )
+
+    return jsonify(
+        {
+            "status": "ok",
+            "password_changed": True
+        }
+    )
+
+
+# =========================================================
+# パスワード変更
+#
+# 2時間に1回
+# =========================================================
+
+@app.route(
+    "/change_room_password",
+    methods=["POST"]
+)
+def change_room_password():
+
+    user = require_user()
+
+    if not user:
+
+        return jsonify(
+            {
+                "status": "error"
+            }
+        ), 401
+
+    data = (
+        request.get_json()
+        or {}
+    )
+
+    room_code = str(
+        data.get(
+            "room",
+            ""
+        )
+    )
+
+    new_password = str(
+        data.get(
+            "password",
+            ""
+        )
+    )
+
+    if not new_password:
+
+        return jsonify(
+            {
+                "status": "error",
+                "message":
+                    "パスワードを入力してください"
+            }
+        ), 400
+
+    room = get_room_by_code(
+        room_code
+    )
+
+    if not room:
+
+        return jsonify(
+            {
+                "status": "error",
+                "message":
+                    "ルームが存在しません"
+            }
+        ), 404
+
+    room_uuid = str(
+        room["id"]
+    )
+
+    result = (
+        db
+        .table("room_settings")
+        .select(
+            "password_changed_at"
+        )
+        .eq(
+            "room_id",
+            room_uuid
+        )
+        .execute()
+    )
+
+    if not result.data:
+
+        return jsonify(
+            {
+                "status": "error",
+                "message":
+                    "ルーム設定がありません"
+            }
+        ), 404
+
+    changed_at = (
+        result.data[0]
+        .get(
+            "password_changed_at"
+        )
+    )
+
+    # =====================================================
+    # 2時間制限
+    # =====================================================
+
+    if changed_at:
+
+        try:
+
+            old_time = datetime.fromisoformat(
+                changed_at.replace(
+                    "Z",
+                    "+00:00"
+                )
             )
 
-            return room_id
+            now = datetime.now(
+                timezone.utc
+            )
+
+            elapsed = (
+                now - old_time
+            ).total_seconds()
+
+            if elapsed < 7200:
+
+                remaining = int(
+                    7200 - elapsed
+                )
+
+                minutes = (
+                    remaining // 60
+                )
+
+                return jsonify(
+                    {
+                        "status": "error",
+                        "message":
+                            "パスワード変更は"
+                            f"あと約{minutes}分後です"
+                    }
+                ), 429
+
+        except Exception:
+
+            pass
+
+    # =====================================================
+    # パスワード変更
+    # =====================================================
+
+    now = datetime.now(
+        timezone.utc
+    )
+
+    (
+        db
+        .table("room_settings")
+        .update(
+            {
+                "password_hash":
+                    generate_password_hash(
+                        new_password
+                    ),
+                "password_changed_at":
+                    now.isoformat(),
+                "updated_at":
+                    now.isoformat()
+            }
+        )
+        .eq(
+            "room_id",
+            room_uuid
+        )
+        .execute()
+    )
+
+    return jsonify(
+        {
+            "status": "ok",
+            "message":
+                "パスワードを変更しました"
+        }
+    )
+
+
+# =========================================================
+# 参加前パスワード確認
+# =========================================================
+
+@app.route(
+    "/check_room_password",
+    methods=["POST"]
+)
+def check_room_password():
+
+    user = require_user()
+
+    if not user:
+
+        return jsonify(
+            {
+                "ok": False
+            }
+        ), 401
+
+    data = (
+        request.get_json()
+        or {}
+    )
+
+    room_code = str(
+        data.get(
+            "room",
+            ""
+        )
+    )
+
+    password = str(
+        data.get(
+            "password",
+            ""
+        )
+    )
+
+    room = get_room_by_code(
+        room_code
+    )
+
+    if not room:
+
+        return jsonify(
+            {
+                "ok": False
+            }
+        )
+
+    room_uuid = str(
+        room["id"]
+    )
+
+    user_id = str(
+        user.id
+    )
+
+    # -----------------------------------------------------
+    # すでに履歴にある場合
+    # -----------------------------------------------------
+
+    member_result = (
+        db
+        .table("room_members")
+        .select("id")
+        .eq(
+            "room_id",
+            room_uuid
+        )
+        .eq(
+            "user_id",
+            user_id
+        )
+        .execute()
+    )
+
+    if member_result.data:
+
+        return jsonify(
+            {
+                "ok": True
+            }
+        )
+
+    # -----------------------------------------------------
+    # 設定取得
+    # -----------------------------------------------------
+
+    settings_result = (
+        db
+        .table("room_settings")
+        .select(
+            "password_enabled,"
+            "password_hash"
+        )
+        .eq(
+            "room_id",
+            room_uuid
+        )
+        .execute()
+    )
+
+    if not settings_result.data:
+
+        return jsonify(
+            {
+                "ok": True
+            }
+        )
+
+    settings = (
+        settings_result.data[0]
+    )
+
+    enabled = bool(
+        settings.get(
+            "password_enabled",
+            False
+        )
+    )
+
+    password_hash = (
+        settings.get(
+            "password_hash"
+        )
+    )
+
+    # -----------------------------------------------------
+    # OFF
+    # -----------------------------------------------------
+
+    if not enabled:
+
+        return jsonify(
+            {
+                "ok": True
+            }
+        )
+
+    # -----------------------------------------------------
+    # パスワードなし
+    # -----------------------------------------------------
+
+    if not password_hash:
+
+        return jsonify(
+            {
+                "ok": False
+            }
+        )
+
+    # -----------------------------------------------------
+    # 確認
+    # -----------------------------------------------------
+
+    if check_password_hash(
+        password_hash,
+        password
+    ):
+
+        return jsonify(
+            {
+                "ok": True
+            }
+        )
+
+    return jsonify(
+        {
+            "ok": False
+        }
+    )
 
 
 # =========================================================
 # ルーム作成
 # =========================================================
 
-@socketio.on("create_room")
+@socketio.on(
+    "create_room"
+)
 def create_room():
 
-    if "username" not in session:
+    user = require_user()
+
+    if not user:
+
         return
 
-    username = session["username"]
+    user_id = str(
+        user.id
+    )
 
-    room_id = generate_room_id()
+    room_code = (
+        generate_room_code()
+    )
 
-    # -----------------------------------------
-    # Supabaseにルーム作成
-    # -----------------------------------------
+    # -----------------------------------------------------
+    # rooms
+    # -----------------------------------------------------
 
-    supabase.table("rooms").insert(
+    result = (
+        db
+        .table("rooms")
+        .insert(
+            {
+                "room_code": room_code,
+                "created_by": user_id
+            }
+        )
+        .execute()
+    )
+
+    if not result.data:
+
+        emit(
+            "join_error",
+            {
+                "message":
+                    "ルーム作成に失敗しました"
+            }
+        )
+
+        return
+
+    room = result.data[0]
+
+    room_uuid = str(
+        room["id"]
+    )
+
+    # -----------------------------------------------------
+    # room_settings
+    # -----------------------------------------------------
+
+    db.table(
+        "room_settings"
+    ).insert(
         {
-            "room_id": room_id,
+            "room_id": room_uuid,
             "password_enabled": False,
-            "password": None,
+            "password_hash": None,
             "password_changed_at": None
         }
     ).execute()
 
-    # -----------------------------------------
-    # メンバー登録
-    # -----------------------------------------
+    # -----------------------------------------------------
+    # room_members
+    # -----------------------------------------------------
 
-    supabase.table("room_members").insert(
+    db.table(
+        "room_members"
+    ).insert(
         {
-            "room_id": room_id,
-            "username": username,
+            "room_id": room_uuid,
+            "user_id": user_id,
             "note": ""
         }
     ).execute()
 
-    # -----------------------------------------
-    # メモリ
-    # -----------------------------------------
+    # -----------------------------------------------------
+    # Socket.IO
+    # -----------------------------------------------------
 
-    rooms[room_id] = [
-        username
-    ]
-
-    join_room(room_id)
+    join_room(
+        room_code
+    )
 
     emit(
         "room_created",
         {
-            "room": room_id
+            "room": room_code
         }
     )
 
@@ -780,25 +1579,37 @@ def create_room():
 # ルーム参加
 # =========================================================
 
-@socketio.on("join_room_by_id")
-def join_room_by_id(data):
+@socketio.on(
+    "join_room_by_id"
+)
+def join_room_by_id(
+    data
+):
 
-    if "username" not in session:
+    user = require_user()
+
+    if not user:
+
         return
 
-    room_id = str(
-        data["room"]
+    room_code = str(
+        data.get(
+            "room",
+            ""
+        )
     )
 
-    username = session["username"]
+    user_id = str(
+        user.id
+    )
 
-    # -----------------------------------------
+    # -----------------------------------------------------
     # 10桁チェック
-    # -----------------------------------------
+    # -----------------------------------------------------
 
     if (
-        not room_id.isdigit()
-        or len(room_id) != 10
+        not room_code.isdigit()
+        or len(room_code) != 10
     ):
 
         emit(
@@ -811,19 +1622,15 @@ def join_room_by_id(data):
 
         return
 
-    # -----------------------------------------
-    # ルーム存在確認
-    # -----------------------------------------
+    # -----------------------------------------------------
+    # ルーム検索
+    # -----------------------------------------------------
 
-    room_result = (
-        supabase
-        .table("rooms")
-        .select("room_id")
-        .eq("room_id", room_id)
-        .execute()
+    room = get_room_by_code(
+        room_code
     )
 
-    if not room_result.data:
+    if not room:
 
         emit(
             "join_error",
@@ -835,78 +1642,99 @@ def join_room_by_id(data):
 
         return
 
-    # -----------------------------------------
-    # メモリ
-    # -----------------------------------------
+    room_uuid = str(
+        room["id"]
+    )
 
-    if room_id not in rooms:
-
-        rooms[room_id] = []
-
-    if username not in rooms[room_id]:
-
-        rooms[room_id].append(
-            username
-        )
-
-    join_room(room_id)
-
-    # -----------------------------------------
-    # 履歴登録
-    # -----------------------------------------
+    # -----------------------------------------------------
+    # メンバー登録
+    # -----------------------------------------------------
 
     member_result = (
-        supabase
+        db
         .table("room_members")
-        .select("room_id")
-        .eq("room_id", room_id)
-        .eq("username", username)
+        .select("id")
+        .eq(
+            "room_id",
+            room_uuid
+        )
+        .eq(
+            "user_id",
+            user_id
+        )
         .execute()
     )
 
     if not member_result.data:
 
-        supabase.table("room_members").insert(
+        db.table(
+            "room_members"
+        ).insert(
             {
-                "room_id": room_id,
-                "username": username,
+                "room_id": room_uuid,
+                "user_id": user_id,
                 "note": ""
             }
         ).execute()
 
-    # -----------------------------------------
-    # 参加通知
-    # -----------------------------------------
+    # -----------------------------------------------------
+    # Socket.IO
+    # -----------------------------------------------------
+
+    join_room(
+        room_code
+    )
 
     emit(
         "joined",
         {
-            "room": room_id
+            "room": room_code
         }
     )
 
-    # -----------------------------------------
+    # -----------------------------------------------------
     # 過去メッセージ
-    # -----------------------------------------
+    # -----------------------------------------------------
 
     message_result = (
-        supabase
+        db
         .table("messages")
         .select(
-            "username,message"
+            "user_id,message,created_at"
         )
-        .eq("room_id", room_id)
-        .order("id")
+        .eq(
+            "room_id",
+            room_uuid
+        )
+        .order(
+            "id"
+        )
         .execute()
     )
 
-    for row in message_result.data or []:
+    for row in (
+        message_result.data or []
+    ):
+
+        message_user_id = str(
+            row["user_id"]
+        )
+
+        profile = get_profile(
+            message_user_id
+        )
+
+        message_username = (
+            profile["username"]
+            if profile
+            else "Unknown"
+        )
 
         emit(
             "chat_message",
             {
                 "username":
-                    row["username"],
+                    message_username,
                 "message":
                     row["message"]
             }
@@ -917,73 +1745,130 @@ def join_room_by_id(data):
 # ルーム退出
 # =========================================================
 
-@socketio.on("leave_room")
-def leave(data):
+@socketio.on(
+    "leave_room"
+)
+def leave(
+    data
+):
 
-    room_id = data["room"]
-
-    username = session.get(
-        "username"
+    room_code = str(
+        data.get(
+            "room",
+            ""
+        )
     )
 
-    leave_room(room_id)
-
-    if room_id in rooms:
-
-        if username in rooms[room_id]:
-
-            rooms[room_id].remove(
-                username
-            )
-
-        if not rooms[room_id]:
-
-            del rooms[room_id]
+    leave_room(
+        room_code
+    )
 
 
 # =========================================================
 # メッセージ
 # =========================================================
 
-@socketio.on("message")
-def handle_message(data):
+@socketio.on(
+    "message"
+)
+def handle_message(
+    data
+):
 
-    if "username" not in session:
+    user = require_user()
+
+    if not user:
+
         return
 
-    room = data["room"]
-    message = data["message"]
+    room_code = str(
+        data.get(
+            "room",
+            ""
+        )
+    )
 
-    username = session["username"]
+    message = str(
+        data.get(
+            "message",
+            ""
+        )
+    ).strip()
 
     if not message:
+
         return
 
-    # -----------------------------------------
-    # Supabase保存
-    # -----------------------------------------
+    room = get_room_by_code(
+        room_code
+    )
 
-    supabase.table("messages").insert(
+    if not room:
+
+        return
+
+    room_uuid = str(
+        room["id"]
+    )
+
+    user_id = str(
+        user.id
+    )
+
+    # -----------------------------------------------------
+    # メンバー確認
+    # -----------------------------------------------------
+
+    member_result = (
+        db
+        .table("room_members")
+        .select("id")
+        .eq(
+            "room_id",
+            room_uuid
+        )
+        .eq(
+            "user_id",
+            user_id
+        )
+        .execute()
+    )
+
+    if not member_result.data:
+
+        return
+
+    # -----------------------------------------------------
+    # Supabase保存
+    # -----------------------------------------------------
+
+    db.table(
+        "messages"
+    ).insert(
         {
-            "room_id": room,
-            "username": username,
+            "room_id": room_uuid,
+            "user_id": user_id,
             "message": message
         }
     ).execute()
 
-    # -----------------------------------------
+    # -----------------------------------------------------
     # リアルタイム送信
-    # -----------------------------------------
+    # -----------------------------------------------------
+
+    profile = ensure_profile(
+        user
+    )
 
     emit(
         "chat_message",
         {
             "username":
-                username,
+                profile["username"],
             "message":
                 message
         },
-        room=room
+        room=room_code
     )
 
 
@@ -991,18 +1876,35 @@ def handle_message(data):
 # 通話開始通知
 # =========================================================
 
-@socketio.on("call_started")
-def call_started(data):
+@socketio.on(
+    "call_started"
+)
+def call_started(
+    data
+):
 
-    room = data["room"]
+    user = require_user()
 
-    username = session["username"]
+    if not user:
 
-    emit(
+        return
+
+    room = str(
+        data.get(
+            "room",
+            ""
+        )
+    )
+
+    profile = ensure_profile(
+        user
+    )
+
+    socketio.emit(
         "call_notification",
         {
             "username":
-                username,
+                profile["username"],
             "room":
                 room
         },
@@ -1014,18 +1916,35 @@ def call_started(data):
 # 通話終了通知
 # =========================================================
 
-@socketio.on("call_ended")
-def call_ended(data):
+@socketio.on(
+    "call_ended"
+)
+def call_ended(
+    data
+):
 
-    room = data["room"]
+    user = require_user()
 
-    username = session["username"]
+    if not user:
 
-    emit(
+        return
+
+    room = str(
+        data.get(
+            "room",
+            ""
+        )
+    )
+
+    profile = ensure_profile(
+        user
+    )
+
+    socketio.emit(
         "call_end_notification",
         {
             "username":
-                username
+                profile["username"]
         },
         room=room
     )
@@ -1035,54 +1954,75 @@ def call_ended(data):
 # CREATERログ投稿
 # =========================================================
 
-@socketio.on("add_creator_log")
-def add_creator_log(data):
+@socketio.on(
+    "add_creator_log"
+)
+def add_creator_log(
+    data
+):
 
-    username = session.get(
-        "username"
+    user = require_user()
+
+    if not user:
+
+        return
+
+    profile = ensure_profile(
+        user
     )
 
-    # -----------------------------------------
+    # -----------------------------------------------------
     # 開発者限定
-    # -----------------------------------------
+    # -----------------------------------------------------
 
-    if username != "開発者":
+    if profile["username"] != "開発者":
+
         return
 
-    message = data["message"]
+    message = str(
+        data.get(
+            "message",
+            ""
+        )
+    ).strip()
 
     if not message:
+
         return
 
-    # -----------------------------------------
-    # Supabase保存
-    # -----------------------------------------
+    # -----------------------------------------------------
+    # 保存
+    # -----------------------------------------------------
 
     result = (
-        supabase
+        db
         .table("creator_logs")
         .insert(
             {
-                "message": message
+                "user_id":
+                    str(user.id),
+                "message":
+                    message
             }
         )
         .execute()
     )
 
     if not result.data:
+
         return
 
-    log_id = result.data[0]["id"]
+    log = result.data[0]
 
-    # -----------------------------------------
+    # -----------------------------------------------------
     # 全員へ通知
-    # -----------------------------------------
+    # -----------------------------------------------------
 
     socketio.emit(
         "new_creator_log",
         {
             "id":
-                log_id,
+                log["id"],
             "message":
                 message
         }
@@ -1093,36 +2033,77 @@ def add_creator_log(data):
 # CREATERログ削除
 # =========================================================
 
-@socketio.on("delete_creator_log")
-def delete_creator_log(data):
+@socketio.on(
+    "delete_creator_log"
+)
+def delete_creator_log(
+    data
+):
 
-    username = session.get(
-        "username"
-    )
+    user = require_user()
 
-    if username != "開発者":
+    if not user:
+
         return
 
-    log_id = data["id"]
+    profile = ensure_profile(
+        user
+    )
+
+    if profile["username"] != "開発者":
+
+        return
+
+    try:
+
+        log_id = int(
+            data.get(
+                "id"
+            )
+        )
+
+    except Exception:
+
+        return
 
     (
-        supabase
+        db
         .table("creator_logs")
         .delete()
-        .eq("id", log_id)
+        .eq(
+            "id",
+            log_id
+        )
         .execute()
     )
 
     socketio.emit(
         "creator_log_deleted",
         {
-            "id": log_id
+            "id":
+                log_id
         }
     )
 
 
 # =========================================================
-# main
+# Health Check
+# =========================================================
+
+@app.route(
+    "/health"
+)
+def health():
+
+    return jsonify(
+        {
+            "status": "ok"
+        }
+    )
+
+
+# =========================================================
+# Main
 # =========================================================
 
 if __name__ == "__main__":
