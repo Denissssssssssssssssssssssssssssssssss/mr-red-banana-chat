@@ -42,9 +42,18 @@ app.config["SECRET_KEY"] = os.environ.get(
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
-# HTTPS環境(Render)ではSecure Cookieを使用
-if os.environ.get("RENDER"):
-    app.config["SESSION_COOKIE_SECURE"] = True
+# ---------------------------------------------------------
+# 重要：
+#
+# os.environ.get("RENDER") だけだと、
+# RENDER="false" でもPythonではTrue扱いになります。
+#
+# "true" のときだけSecure Cookieを有効にします。
+# ---------------------------------------------------------
+
+app.config["SESSION_COOKIE_SECURE"] = (
+    os.environ.get("RENDER", "").lower() == "true"
+)
 
 
 # =========================================================
@@ -104,7 +113,7 @@ db = create_client(
 # =========================================================
 # Flask Session Storage
 #
-# Supabase OAuth PKCE用。
+# Supabase OAuth PKCE用
 # =========================================================
 
 class FlaskSessionStorage:
@@ -139,8 +148,6 @@ def get_auth_client():
 
 # =========================================================
 # 現在のSupabaseユーザー
-#
-# ★ここを安定版に変更
 # =========================================================
 
 def get_current_user():
@@ -161,92 +168,72 @@ def get_current_user():
         auth_client = get_auth_client()
 
         # -------------------------------------------------
-        # 保存されているセッションをSupabase側にもセット
+        # refresh tokenがある場合はセッションを復元
         # -------------------------------------------------
 
         if refresh_token:
 
-            try:
+            auth_client.auth.set_session(
+                access_token,
+                refresh_token
+            )
 
-                auth_client.auth.set_session(
-                    access_token,
-                    refresh_token
-                )
+        else:
 
-            except Exception as e:
-
-                print(
-                    "set_session warning:",
-                    repr(e)
-                )
+            auth_client.auth.set_session(
+                access_token,
+                ""
+            )
 
         # -------------------------------------------------
-        # 現在のユーザーをアクセストークンから取得
+        # 現在のセッションを取得
+        # -------------------------------------------------
+
+        current_session = (
+            auth_client
+            .auth
+            .get_session()
+        )
+
+        if (
+            current_session
+            and current_session.session
+        ):
+
+            current = (
+                current_session.session
+            )
+
+            session["access_token"] = (
+                current.access_token
+            )
+
+            if current.refresh_token:
+
+                session["refresh_token"] = (
+                    current.refresh_token
+                )
+
+            access_token = (
+                current.access_token
+            )
+
+        # -------------------------------------------------
+        # ユーザー取得
         # -------------------------------------------------
 
         response = (
             auth_client
             .auth
-            .get_user(access_token)
+            .get_user(
+                access_token
+            )
         )
 
         user = response.user
 
         if not user:
-
-            print(
-                "get_current_user: user is None"
-            )
-
             return None
-
-        # -------------------------------------------------
-        # Supabase側で更新されたセッションがあれば保存
-        # -------------------------------------------------
-
-        try:
-
-            current_session = (
-                auth_client
-                .auth
-                .get_session()
-            )
-
-            if (
-                current_session
-                and current_session.session
-            ):
-
-                new_access_token = (
-                    current_session
-                    .session
-                    .access_token
-                )
-
-                new_refresh_token = (
-                    current_session
-                    .session
-                    .refresh_token
-                )
-
-                if new_access_token:
-
-                    session["access_token"] = (
-                        new_access_token
-                    )
-
-                if new_refresh_token:
-
-                    session["refresh_token"] = (
-                        new_refresh_token
-                    )
-
-        except Exception as e:
-
-            print(
-                "session refresh warning:",
-                repr(e)
-            )
 
         return user
 
@@ -266,31 +253,21 @@ def get_current_user():
 
 def get_profile(user_id):
 
-    try:
-
-        result = (
-            db
-            .table("profiles")
-            .select(
-                "id,username,created_at,tutorial_completed"
-            )
-            .eq(
-                "id",
-                user_id
-            )
-            .execute()
+    result = (
+        db
+        .table("profiles")
+        .select(
+            "id,username,created_at,tutorial_completed"
         )
-
-        if result.data:
-
-            return result.data[0]
-
-    except Exception as e:
-
-        print(
-            "get_profile error:",
-            repr(e)
+        .eq(
+            "id",
+            user_id
         )
+        .execute()
+    )
+
+    if result.data:
+        return result.data[0]
 
     return None
 
@@ -306,7 +283,6 @@ def ensure_profile(user):
     profile = get_profile(user_id)
 
     if profile:
-
         return profile, False
 
     metadata = (
@@ -327,54 +303,44 @@ def ensure_profile(user):
 
     username = str(username)[:100]
 
-    try:
+    existing = (
+        db
+        .table("profiles")
+        .select("id")
+        .eq(
+            "username",
+            username
+        )
+        .execute()
+    )
 
-        existing = (
-            db
-            .table("profiles")
-            .select("id")
-            .eq(
-                "username",
-                username
-            )
-            .execute()
+    if existing.data:
+
+        username = (
+            username
+            + "_"
+            + user_id[:8]
         )
 
-        if existing.data:
-
-            username = (
-                username
-                + "_"
-                + user_id[:8]
-            )
-
-        result = (
-            db
-            .table("profiles")
-            .insert(
-                {
-                    "id": user_id,
-                    "username": username,
-                    "tutorial_completed": False
-                }
-            )
-            .execute()
+    result = (
+        db
+        .table("profiles")
+        .insert(
+            {
+                "id": user_id,
+                "username": username,
+                "tutorial_completed": False
+            }
         )
+        .execute()
+    )
 
-        if result.data:
-
-            return result.data[0], True
-
-    except Exception as e:
-
-        print(
-            "ensure_profile insert error:",
-            repr(e)
-        )
+    if result.data:
+        return result.data[0], True
 
     profile = get_profile(user_id)
 
-    return profile, False
+    return profile, True
 
 
 # =========================================================
@@ -386,18 +352,9 @@ def require_user():
     user = get_current_user()
 
     if not user:
-
         return None
 
-    profile, _ = ensure_profile(user)
-
-    if not profile:
-
-        print(
-            "require_user: profile could not be loaded"
-        )
-
-        return None
+    ensure_profile(user)
 
     return user
 
@@ -412,12 +369,6 @@ def redirect_after_auth(
 ):
 
     profile, created = ensure_profile(user)
-
-    if not profile:
-
-        return (
-            "プロフィールを作成できませんでした"
-        ), 500
 
     if newly_created or created:
 
@@ -455,12 +406,6 @@ def index():
         )
 
     profile, _ = ensure_profile(user)
-
-    if not profile:
-
-        return render_template(
-            "auth.html"
-        )
 
     if not profile.get(
         "tutorial_completed",
@@ -662,7 +607,7 @@ def register():
             ), 400
 
         # -------------------------------------------------
-        # 即時セッション発行
+        # セッションが即時発行された場合
         # -------------------------------------------------
 
         if auth_session:
@@ -675,20 +620,15 @@ def register():
                 auth_session.refresh_token
             )
 
-            profile, created = ensure_profile(
-                user
+            profile, created = (
+                ensure_profile(user)
             )
 
-            if not profile:
-
-                return (
-                    "プロフィール作成に失敗しました"
-                ), 500
-
             # 入力されたメールアドレスを
-            # usernameとして保存
+            # プロフィール名として保存
             if (
                 username
+                and profile
                 and profile["username"] != username
             ):
 
@@ -709,7 +649,7 @@ def register():
                 except Exception as e:
 
                     print(
-                        "username update warning:",
+                        "profile username update error:",
                         repr(e)
                     )
 
@@ -720,7 +660,7 @@ def register():
             )
 
         # -------------------------------------------------
-        # メール確認が必要
+        # メール確認が必要な場合
         # -------------------------------------------------
 
         return (
@@ -807,11 +747,14 @@ def login():
             auth_session.refresh_token
         )
 
-        # セッションを確実に保存
+        # -------------------------------------------------
+        # セッションが本当に保存できたか確認
+        # -------------------------------------------------
+
         session.modified = True
 
         print(
-            "LOGIN SUCCESS:",
+            "login success:",
             str(user.id)
         )
 
@@ -828,8 +771,7 @@ def login():
         )
 
         return (
-            "ログインに失敗しました: "
-            + str(e)
+            "ログインに失敗しました"
         ), 401
 
 
@@ -1013,10 +955,6 @@ def terms():
 
     profile, _ = ensure_profile(user)
 
-    if not profile:
-
-        return redirect("/")
-
     if profile.get(
         "tutorial_completed",
         False
@@ -1069,10 +1007,6 @@ def tutorial():
 
     profile, _ = ensure_profile(user)
 
-    if not profile:
-
-        return redirect("/")
-
     if profile.get(
         "tutorial_completed",
         False
@@ -1102,8 +1036,7 @@ def complete_tutorial():
         return redirect("/")
 
     # -----------------------------------------------------
-    # 新規登録ユーザーの場合、
-    # 契約同意済みか確認
+    # 新規登録ユーザーの場合は契約同意を確認
     # -----------------------------------------------------
 
     if (
