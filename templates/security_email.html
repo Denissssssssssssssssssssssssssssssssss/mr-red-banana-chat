@@ -1,238 +1,358 @@
 <!DOCTYPE html>
-
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>セキュリティ補強</title>
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-<style>
-    body {
-        margin: 0;
-        min-height: 100vh;
+    <title>セキュリティ補強</title>
 
-        display: flex;
-        justify-content: center;
-        align-items: center;
+    <style>
 
-        background: #f5f5f5;
-        font-family: Arial, sans-serif;
-    }
+        * {
+            box-sizing: border-box;
+        }
 
-    .container {
-        width: 90%;
-        max-width: 480px;
+        body {
+            margin: 0;
+            min-height: 100vh;
 
-        background: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
 
-        padding: 35px;
-        box-sizing: border-box;
+            background: #f5f5f5;
 
-        border-radius: 16px;
+            font-family:
+                -apple-system,
+                BlinkMacSystemFont,
+                "Segoe UI",
+                sans-serif;
 
-        box-shadow:
-            0 4px 20px rgba(0, 0, 0, 0.08);
+            color: #222;
+        }
 
-        text-align: center;
-    }
+        .container {
+            width: 100%;
+            max-width: 430px;
 
-    h1 {
-        margin-top: 0;
-        margin-bottom: 12px;
+            padding: 32px;
 
-        font-size: 26px;
-    }
+            background: white;
 
-    .description {
-        color: #555;
-        line-height: 1.7;
-        margin-bottom: 25px;
-    }
+            border-radius: 16px;
 
-    .email-form {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-    }
+            box-shadow:
+                0 8px 30px rgba(0, 0, 0, 0.08);
 
-    input[type="email"] {
-        width: 100%;
+            text-align: center;
+        }
 
-        padding: 13px;
+        h1 {
+            margin-top: 0;
+            margin-bottom: 12px;
 
-        box-sizing: border-box;
+            font-size: 26px;
+        }
 
-        border: 1px solid #ccc;
-        border-radius: 8px;
+        .description {
+            margin-bottom: 26px;
 
-        font-size: 16px;
-    }
+            line-height: 1.7;
 
-    button {
-        width: 100%;
+            color: #555;
 
-        padding: 13px;
+            font-size: 14px;
+        }
 
-        border: none;
-        border-radius: 8px;
+        .email-form {
+            margin-bottom: 22px;
+        }
 
-        background: #222;
-        color: white;
+        input[type="email"] {
+            width: 100%;
 
-        font-size: 16px;
+            padding: 13px 14px;
 
-        cursor: pointer;
-    }
+            border: 1px solid #ccc;
 
-    button:hover {
-        opacity: 0.85;
-    }
+            border-radius: 8px;
 
-    .divider {
-        display: flex;
-        align-items: center;
-        gap: 12px;
+            font-size: 15px;
 
-        margin: 25px 0;
-    }
+            outline: none;
+        }
 
-    .divider::before,
-    .divider::after {
-        content: "";
+        input[type="email"]:focus {
+            border-color: #666;
+        }
 
-        flex: 1;
+        .email-button {
+            width: 100%;
 
-        height: 1px;
+            margin-top: 10px;
 
-        background: #ddd;
-    }
+            padding: 13px;
 
-    .divider span {
-        color: #888;
-        font-size: 13px;
-    }
+            border: none;
 
-    .oauth-buttons {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-    }
+            border-radius: 8px;
 
-    .oauth-button {
-        display: block;
+            background: #222;
 
-        width: 100%;
+            color: white;
 
-        padding: 12px;
+            font-size: 15px;
 
-        box-sizing: border-box;
+            cursor: pointer;
+        }
 
-        border: 1px solid #ddd;
-        border-radius: 8px;
+        .email-button:hover {
+            opacity: 0.85;
+        }
 
-        background: white;
-        color: #222;
+        .divider {
+            display: flex;
 
-        text-decoration: none;
+            align-items: center;
 
-        font-size: 15px;
-    }
+            gap: 10px;
 
-    .oauth-button:hover {
-        background: #f7f7f7;
-    }
+            margin: 24px 0;
 
-    .skip {
-        display: block;
+            color: #999;
 
-        margin-top: 25px;
+            font-size: 12px;
+        }
 
-        font-size: 12px;
-        color: #999;
+        .divider::before,
+        .divider::after {
+            content: "";
 
-        text-decoration: underline;
-    }
+            flex: 1;
 
-    .skip:hover {
-        color: #555;
-    }
-</style>
-```
+            height: 1px;
+
+            background: #ddd;
+        }
+
+        .oauth-button {
+            width: 100%;
+
+            margin-bottom: 10px;
+
+            padding: 12px;
+
+            border: 1px solid #ddd;
+
+            border-radius: 8px;
+
+            background: white;
+
+            color: #222;
+
+            font-size: 14px;
+
+            cursor: pointer;
+        }
+
+        .oauth-button:hover {
+            background: #f7f7f7;
+        }
+
+        .skip {
+            display: block;
+
+            margin-top: 22px;
+
+            color: #999;
+
+            font-size: 12px;
+
+            text-decoration: underline;
+
+            cursor: pointer;
+        }
+
+        .skip:hover {
+            color: #555;
+        }
+
+        .message {
+            display: none;
+
+            margin-top: 15px;
+
+            padding: 10px;
+
+            border-radius: 7px;
+
+            background: #fff3cd;
+
+            color: #856404;
+
+            font-size: 13px;
+
+            line-height: 1.5;
+        }
+
+    </style>
 
 </head>
+
 
 <body>
 
 <div class="container">
 
-```
-<h1>セキュリティ補強</h1>
+    <h1>
+        セキュリティ補強
+    </h1>
 
-<p class="description">
-    セキュリティ補強のため、<br>
-    メールアドレスを追加しましょう。
-</p>
 
-<!-- メールアドレス追加 -->
-<form
-    class="email-form"
-    action="{{ url_for('security_email') }}"
-    method="post"
->
+    <div class="description">
 
-    <input
-        type="email"
-        name="email"
-        placeholder="メールアドレス"
-        autocomplete="email"
+        セキュリティ補強のため、<br>
+        メールアドレスを追加しましょう。<br><br>
+
+        パスワードを忘れた場合などに、
+        アカウントを安全に復旧できます。
+
+    </div>
+
+
+    <!-- =================================================
+         メールアドレス追加
+         ================================================= -->
+
+    <form
+        class="email-form"
+        action="/security_email"
+        method="post"
     >
 
-    <button type="submit">
-        メールを追加
+        <input
+            type="email"
+            name="email"
+            placeholder="メールアドレス"
+            autocomplete="email"
+        >
+
+        <button
+            type="submit"
+            class="email-button"
+        >
+            メールアドレスを追加
+        </button>
+
+    </form>
+
+
+    <!-- =================================================
+         OAuth
+         ================================================= -->
+
+    <div class="divider">
+        または
+    </div>
+
+
+    <button
+        type="button"
+        class="oauth-button"
+        onclick="loginWithProvider('google')"
+    >
+        Googleで続行
     </button>
 
-</form>
 
-<div class="divider">
-    <span>または</span>
-</div>
+    <button
+        type="button"
+        class="oauth-button"
+        onclick="loginWithProvider('github')"
+    >
+        GitHubで続行
+    </button>
 
-<!-- 外部アカウント -->
-<div class="oauth-buttons">
+
+    <button
+        type="button"
+        class="oauth-button"
+        onclick="loginWithProvider('azure')"
+    >
+        Microsoft Accountで続行
+    </button>
+
+
+    <!-- =================================================
+         メッセージ
+         ================================================= -->
+
+    <div
+        id="message"
+        class="message"
+    ></div>
+
+
+    <!-- =================================================
+         スキップ
+         ================================================= -->
 
     <a
-        class="oauth-button"
-        href="{{ url_for('oauth_login', provider='google') }}"
+        class="skip"
+        href="/skip_security_email"
     >
-        Googleで続ける
-    </a>
-
-    <a
-        class="oauth-button"
-        href="{{ url_for('oauth_login', provider='github') }}"
-    >
-        GitHubで続ける
-    </a>
-
-    <a
-        class="oauth-button"
-        href="{{ url_for('oauth_login', provider='azure') }}"
-    >
-        Microsoft Accountで続ける
+        今はスキップする
     </a>
 
 </div>
 
-<!-- メールを登録しない -->
-<a
-    class="skip"
-    href="{{ url_for('skip_security_email') }}"
->
-    今はスキップする
-</a>
 
-</div>
+<script>
+
+    function loginWithProvider(provider) {
+
+        window.location.href =
+            "/auth/" + provider;
+
+    }
+
+
+    /*
+     * URLにエラーが返ってきた場合
+     */
+
+    const params =
+        new URLSearchParams(
+            window.location.search
+        );
+
+
+    const error =
+        params.get("error");
+
+
+    const message =
+        document.getElementById(
+            "message"
+        );
+
+
+    if (error) {
+
+        message.style.display = "block";
+
+        message.textContent =
+            "認証に失敗しました。もう一度お試しください。";
+
+    }
+
+</script>
 
 </body>
+
 </html>
