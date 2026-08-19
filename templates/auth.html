@@ -1,45 +1,1102 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
+
 <head>
+
 <meta charset="UTF-8">
-<title>ログイン</title>
+
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
+
+<title>Mr.Red Banana Chat</title>
+
+<style>
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+
+    margin: 0;
+
+    min-height: 100vh;
+
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+
+    background:
+        linear-gradient(
+            135deg,
+            #fff4df,
+            #ffe9c7
+        );
+
+    display: flex;
+
+    justify-content: center;
+
+    align-items: center;
+
+    color: #333;
+}
+
+
+/* =========================================
+   全体
+========================================= */
+
+.container {
+
+    width: 100%;
+
+    max-width: 430px;
+
+    padding: 24px;
+}
+
+
+/* =========================================
+   ロゴ
+========================================= */
+
+.logo {
+
+    text-align: center;
+
+    margin-bottom: 25px;
+}
+
+.logo h1 {
+
+    margin: 0;
+
+    font-size: 30px;
+
+    font-weight: 800;
+
+    color: #e67e22;
+}
+
+.logo p {
+
+    margin-top: 8px;
+
+    color: #777;
+
+    font-size: 14px;
+}
+
+
+/* =========================================
+   カード
+========================================= */
+
+.card {
+
+    background: white;
+
+    border-radius: 18px;
+
+    padding: 28px;
+
+    box-shadow:
+        0 8px 30px
+        rgba(0, 0, 0, 0.10);
+}
+
+
+/* =========================================
+   タイトル
+========================================= */
+
+.card h2 {
+
+    margin-top: 0;
+
+    margin-bottom: 20px;
+
+    font-size: 22px;
+
+    text-align: center;
+}
+
+
+/* =========================================
+   入力欄
+========================================= */
+
+.input-group {
+
+    margin-bottom: 14px;
+}
+
+.input-group label {
+
+    display: block;
+
+    font-size: 13px;
+
+    font-weight: 600;
+
+    margin-bottom: 6px;
+
+    color: #555;
+}
+
+.input-group input {
+
+    width: 100%;
+
+    padding: 12px 13px;
+
+    border: 1px solid #ddd;
+
+    border-radius: 9px;
+
+    font-size: 15px;
+
+    outline: none;
+
+    transition: 0.2s;
+}
+
+.input-group input:focus {
+
+    border-color: #e67e22;
+
+    box-shadow:
+        0 0 0 3px
+        rgba(230, 126, 34, 0.12);
+}
+
+
+/* =========================================
+   ボタン
+========================================= */
+
+button {
+
+    width: 100%;
+
+    border: none;
+
+    border-radius: 9px;
+
+    padding: 12px;
+
+    font-size: 15px;
+
+    font-weight: 700;
+
+    cursor: pointer;
+
+    transition: 0.2s;
+}
+
+.primary-button {
+
+    background: #e67e22;
+
+    color: white;
+}
+
+.primary-button:hover {
+
+    background: #d96f16;
+}
+
+
+/* =========================================
+   区切り
+========================================= */
+
+.divider {
+
+    display: flex;
+
+    align-items: center;
+
+    gap: 10px;
+
+    margin: 22px 0;
+
+    color: #aaa;
+
+    font-size: 12px;
+}
+
+.divider::before,
+.divider::after {
+
+    content: "";
+
+    flex: 1;
+
+    height: 1px;
+
+    background: #eee;
+}
+
+
+/* =========================================
+   OAuth
+========================================= */
+
+.oauth-button {
+
+    background: white;
+
+    color: #333;
+
+    border: 1px solid #ddd;
+
+    margin-bottom: 9px;
+
+    font-weight: 600;
+}
+
+.oauth-button:hover {
+
+    background: #f8f8f8;
+}
+
+
+/* =========================================
+   切り替え
+========================================= */
+
+.switch-area {
+
+    text-align: center;
+
+    margin-top: 22px;
+
+    font-size: 13px;
+
+    color: #777;
+}
+
+.switch-area a {
+
+    color: #e67e22;
+
+    font-weight: 700;
+
+    cursor: pointer;
+
+    text-decoration: none;
+}
+
+
+/* =========================================
+   メール追加画面
+========================================= */
+
+#security-page {
+
+    display: none;
+}
+
+.security-title {
+
+    font-size: 21px;
+
+    font-weight: 800;
+
+    text-align: center;
+
+    margin-bottom: 12px;
+}
+
+.security-description {
+
+    text-align: center;
+
+    font-size: 14px;
+
+    line-height: 1.7;
+
+    color: #666;
+
+    margin-bottom: 22px;
+}
+
+
+/* =========================================
+   スキップ
+========================================= */
+
+.skip {
+
+    display: block;
+
+    text-align: center;
+
+    margin-top: 20px;
+
+    font-size: 12px;
+
+    color: #999;
+
+    text-decoration: underline;
+
+    cursor: pointer;
+}
+
+.skip:hover {
+
+    color: #666;
+}
+
+
+/* =========================================
+   エラー
+========================================= */
+
+.error {
+
+    background: #fff0f0;
+
+    border: 1px solid #ffd0d0;
+
+    color: #d33;
+
+    border-radius: 8px;
+
+    padding: 10px;
+
+    margin-bottom: 15px;
+
+    font-size: 13px;
+
+    display: none;
+}
+
+
+/* =========================================
+   成功
+========================================= */
+
+.success {
+
+    background: #effff3;
+
+    border: 1px solid #c9f2d2;
+
+    color: #23833b;
+
+    border-radius: 8px;
+
+    padding: 10px;
+
+    margin-bottom: 15px;
+
+    font-size: 13px;
+
+    display: none;
+}
+
+</style>
+
 </head>
+
 
 <body>
 
-<h2>ログイン</h2>
 
-<form action="/login" method="post">
+<div class="container">
 
-<input name="username" placeholder="ユーザー名">
 
-<br>
+    <!-- =====================================
+         ロゴ
+    ====================================== -->
 
-<input name="password" type="password" placeholder="パスワード">
+    <div class="logo">
 
-<br>
+        <h1>Mr.Red Banana Chat</h1>
 
-<button type="submit">ログイン</button>
+        <p>
+            Chat and more, together.
+        </p>
 
-</form>
+    </div>
 
-<hr>
 
-<h2>新規登録</h2>
+    <!-- =====================================
+         ログイン・登録カード
+    ====================================== -->
 
-<form action="/register" method="post">
+    <div class="card">
 
-<input name="username" placeholder="ユーザー名">
 
-<br>
+        <!-- =================================
+             ログイン画面
+        ================================== -->
 
-<input name="password" type="password" placeholder="パスワード">
+        <div id="login-page">
 
-<br>
+            <h2>ログイン</h2>
 
-<button type="submit">登録</button>
 
-</form>
+            <div id="login-error"
+                 class="error">
+            </div>
+
+
+            <form
+                action="/login"
+                method="post"
+            >
+
+                <div class="input-group">
+
+                    <label>
+                        ユーザーネーム
+                    </label>
+
+                    <input
+                        type="text"
+                        name="username"
+                        placeholder="ユーザーネーム"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="input-group">
+
+                    <label>
+                        パスワード
+                    </label>
+
+                    <input
+                        type="password"
+                        name="password"
+                        placeholder="パスワード"
+                        required
+                    >
+
+                </div>
+
+
+                <button
+                    type="submit"
+                    class="primary-button"
+                >
+                    ログイン
+                </button>
+
+            </form>
+
+
+            <div class="divider">
+                または
+            </div>
+
+
+            <a
+                href="/auth/google"
+                style="text-decoration:none;"
+            >
+
+                <button
+                    type="button"
+                    class="oauth-button"
+                >
+                    Googleでログイン
+                </button>
+
+            </a>
+
+
+            <a
+                href="/auth/github"
+                style="text-decoration:none;"
+            >
+
+                <button
+                    type="button"
+                    class="oauth-button"
+                >
+                    GitHubでログイン
+                </button>
+
+            </a>
+
+
+            <a
+                href="/auth/azure"
+                style="text-decoration:none;"
+            >
+
+                <button
+                    type="button"
+                    class="oauth-button"
+                >
+                    Microsoft Accountでログイン
+                </button>
+
+            </a>
+
+
+            <div class="switch-area">
+
+                アカウントをお持ちでない方
+
+                <br>
+
+                <a
+                    onclick="showRegister()"
+                >
+                    新規登録
+                </a>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- =================================
+             新規登録画面
+        ================================== -->
+
+        <div id="register-page">
+
+            <h2>新規登録</h2>
+
+
+            <div id="register-error"
+                 class="error">
+            </div>
+
+
+            <form
+                id="register-form"
+            >
+
+                <div class="input-group">
+
+                    <label>
+                        ユーザーネーム
+                    </label>
+
+                    <input
+                        type="text"
+                        id="register-username"
+                        name="username"
+                        placeholder="あなたのユーザーネーム"
+                        maxlength="100"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="input-group">
+
+                    <label>
+                        パスワード
+                    </label>
+
+                    <input
+                        type="password"
+                        id="register-password"
+                        name="password"
+                        placeholder="パスワード"
+                        minlength="6"
+                        required
+                    >
+
+                </div>
+
+
+                <button
+                    type="submit"
+                    class="primary-button"
+                >
+                    新規登録
+                </button>
+
+            </form>
+
+
+            <div class="switch-area">
+
+                すでにアカウントをお持ちの方
+
+                <br>
+
+                <a
+                    onclick="showLogin()"
+                >
+                    ログイン
+                </a>
+
+            </div>
+
+        </div>
+
+
+
+        <!-- =================================
+             セキュリティ補強
+        ================================== -->
+
+        <div id="security-page">
+
+
+            <div class="security-title">
+
+                セキュリティ補強
+
+            </div>
+
+
+            <div class="security-description">
+
+                セキュリティ補強のため、<br>
+                メールを追加しましょう。
+
+            </div>
+
+
+            <div id="email-error"
+                 class="error">
+            </div>
+
+
+            <div id="email-success"
+                 class="success">
+            </div>
+
+
+            <form
+                id="email-form"
+            >
+
+                <div class="input-group">
+
+                    <label>
+                        メールアドレス
+                        <span
+                            style="
+                                color:#999;
+                                font-weight:normal;
+                            "
+                        >
+                            （任意）
+                        </span>
+                    </label>
+
+                    <input
+                        type="email"
+                        id="security-email"
+                        name="email"
+                        placeholder="example@example.com"
+                    >
+
+                </div>
+
+
+                <button
+                    type="submit"
+                    class="primary-button"
+                >
+                    メールを追加して続ける
+                </button>
+
+            </form>
+
+
+            <div class="divider">
+                または
+            </div>
+
+
+            <a
+                href="/auth/google"
+                style="text-decoration:none;"
+            >
+
+                <button
+                    type="button"
+                    class="oauth-button"
+                >
+                    Googleを追加
+                </button>
+
+            </a>
+
+
+            <a
+                href="/auth/github"
+                style="text-decoration:none;"
+            >
+
+                <button
+                    type="button"
+                    class="oauth-button"
+                >
+                    GitHubを追加
+                </button>
+
+            </a>
+
+
+            <a
+                href="/auth/azure"
+                style="text-decoration:none;"
+            >
+
+                <button
+                    type="button"
+                    class="oauth-button"
+                >
+                    Microsoft Accountを追加
+                </button>
+
+            </a>
+
+
+            <a
+                class="skip"
+                onclick="skipEmail()"
+            >
+                スキップする
+            </a>
+
+
+        </div>
+
+
+    </div>
+
+
+</div>
+
+
+
+<script>
+
+/* =========================================
+   ページ切り替え
+========================================= */
+
+function showLogin() {
+
+    document
+        .getElementById("login-page")
+        .style.display = "block";
+
+    document
+        .getElementById("register-page")
+        .style.display = "none";
+
+    document
+        .getElementById("security-page")
+        .style.display = "none";
+}
+
+
+function showRegister() {
+
+    document
+        .getElementById("login-page")
+        .style.display = "none";
+
+    document
+        .getElementById("register-page")
+        .style.display = "block";
+
+    document
+        .getElementById("security-page")
+        .style.display = "none";
+}
+
+
+function showSecurityPage() {
+
+    document
+        .getElementById("login-page")
+        .style.display = "none";
+
+    document
+        .getElementById("register-page")
+        .style.display = "none";
+
+    document
+        .getElementById("security-page")
+        .style.display = "block";
+}
+
+
+/* =========================================
+   新規登録
+========================================= */
+
+document
+    .getElementById("register-form")
+    .addEventListener(
+        "submit",
+        async function(event) {
+
+            event.preventDefault();
+
+
+            const username =
+                document
+                    .getElementById(
+                        "register-username"
+                    )
+                    .value
+                    .trim();
+
+
+            const password =
+                document
+                    .getElementById(
+                        "register-password"
+                    )
+                    .value;
+
+
+            const error =
+                document
+                    .getElementById(
+                        "register-error"
+                    );
+
+
+            error.style.display = "none";
+
+
+            if (!username || !password) {
+
+                error.textContent =
+                    "ユーザーネームとパスワードを入力してください。";
+
+                error.style.display = "block";
+
+                return;
+            }
+
+
+            try {
+
+                const response =
+                    await fetch(
+                        "/register",
+                        {
+                            method: "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/json"
+                            },
+
+                            body: JSON.stringify({
+                                username:
+                                    username,
+
+                                password:
+                                    password
+                            })
+                        }
+                    );
+
+
+                const data =
+                    await response.json();
+
+
+                if (!response.ok) {
+
+                    error.textContent =
+                        data.message ||
+                        "新規登録に失敗しました。";
+
+                    error.style.display =
+                        "block";
+
+                    return;
+                }
+
+
+                /*
+                 * アカウント作成成功
+                 *
+                 * メール登録画面へ
+                 */
+
+                showSecurityPage();
+
+            }
+            catch (e) {
+
+                error.textContent =
+                    "通信エラーが発生しました。";
+
+                error.style.display =
+                    "block";
+
+            }
+
+        }
+    );
+
+
+
+/* =========================================
+   メール追加
+========================================= */
+
+document
+    .getElementById("email-form")
+    .addEventListener(
+        "submit",
+        async function(event) {
+
+            event.preventDefault();
+
+
+            const email =
+                document
+                    .getElementById(
+                        "security-email"
+                    )
+                    .value
+                    .trim();
+
+
+            const error =
+                document
+                    .getElementById(
+                        "email-error"
+                    );
+
+
+            error.style.display =
+                "none";
+
+
+            if (!email) {
+
+                skipEmail();
+
+                return;
+
+            }
+
+
+            try {
+
+                const response =
+                    await fetch(
+                        "/add_email",
+                        {
+                            method: "POST",
+
+                            headers: {
+                                "Content-Type":
+                                    "application/json"
+                            },
+
+                            body: JSON.stringify({
+                                email:
+                                    email
+                            })
+                        }
+                    );
+
+
+                const data =
+                    await response.json();
+
+
+                if (!response.ok) {
+
+                    error.textContent =
+                        data.message ||
+                        "メールアドレスを追加できませんでした。";
+
+                    error.style.display =
+                        "block";
+
+                    return;
+
+                }
+
+
+                /*
+                 * メール追加成功
+                 *
+                 * 次は契約ページ
+                 */
+
+                window.location.href =
+                    "/terms";
+
+            }
+            catch (e) {
+
+                error.textContent =
+                    "通信エラーが発生しました。";
+
+                error.style.display =
+                    "block";
+
+            }
+
+        }
+    );
+
+
+
+/* =========================================
+   メールをスキップ
+========================================= */
+
+async function skipEmail() {
+
+    try {
+
+        await fetch(
+            "/skip_email",
+            {
+                method: "POST"
+            }
+        );
+
+    }
+    catch (e) {
+
+        console.log(
+            "skip email:",
+            e
+        );
+
+    }
+
+
+    /*
+     * メールを登録しなくても
+     * 契約ページへ進める
+     */
+
+    window.location.href =
+        "/terms";
+
+}
+
+</script>
+
 
 </body>
+
 </html>
