@@ -1,10 +1,11 @@
+```html
 <!DOCTYPE html>
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>チュートリアル - Mr.Red Banana Chat</title>
+    <title>チュートリアル - Mr.Red Banana 暇人チャッツ</title>
 
     <style>
         * {
@@ -15,6 +16,9 @@
             margin: 0;
             min-height: 100vh;
 
+            background: #f5f5f5;
+            color: #222;
+
             font-family:
                 -apple-system,
                 BlinkMacSystemFont,
@@ -22,206 +26,132 @@
                 "Noto Sans JP",
                 sans-serif;
 
-            background: #f5f6f8;
-            color: #222;
-
             display: flex;
             justify-content: center;
             align-items: center;
 
-            padding: 30px;
+            padding: 30px 15px;
         }
 
         .container {
             width: 100%;
-            max-width: 760px;
+            max-width: 720px;
 
             background: white;
 
             border-radius: 18px;
 
+            padding: 35px;
+
             box-shadow:
-                0 10px 35px rgba(0, 0, 0, 0.08);
-
-            padding: 40px;
-        }
-
-        .logo {
-            text-align: center;
-
-            font-size: 28px;
-            font-weight: 700;
-
-            margin-bottom: 8px;
-        }
-
-        .subtitle {
-            text-align: center;
-
-            color: #777;
-
-            margin-bottom: 30px;
-        }
-
-        .progress {
-            display: flex;
-            justify-content: center;
-            gap: 8px;
-
-            margin-bottom: 30px;
-        }
-
-        .dot {
-            width: 10px;
-            height: 10px;
-
-            border-radius: 50%;
-
-            background: #ddd;
-
-            transition: 0.2s;
-        }
-
-        .dot.active {
-            background: #111;
-        }
-
-        .page {
-            display: none;
-        }
-
-        .page.active {
-            display: block;
-        }
-
-        .page-number {
-            color: #888;
-
-            font-size: 14px;
-
-            margin-bottom: 8px;
+                0 8px 30px rgba(0, 0, 0, 0.08);
         }
 
         h1 {
-            font-size: 25px;
+            margin: 0;
 
-            margin-top: 0;
+            text-align: center;
+
+            font-size: 28px;
+        }
+
+        .subtitle {
+            margin-top: 10px;
+            margin-bottom: 30px;
+
+            text-align: center;
+
+            color: #777;
+        }
+
+        .step {
+            border: 1px solid #e2e2e2;
+
+            border-radius: 14px;
+
+            padding: 20px;
+
             margin-bottom: 15px;
-        }
-
-        h2 {
-            font-size: 20px;
-
-            margin-top: 0;
-        }
-
-        p {
-            line-height: 1.8;
-
-            color: #444;
-        }
-
-        .feature {
-            border: 1px solid #e3e3e3;
-
-            border-radius: 12px;
-
-            padding: 18px;
-
-            margin-top: 15px;
 
             background: #fafafa;
         }
 
-        .feature-title {
-            font-weight: 700;
+        .step-number {
+            font-size: 13px;
 
-            margin-bottom: 6px;
+            color: #888;
+
+            margin-bottom: 5px;
         }
 
-        .buttons {
-            display: flex;
+        .step-title {
+            font-size: 19px;
 
-            gap: 12px;
+            font-weight: bold;
 
-            margin-top: 30px;
+            margin-bottom: 8px;
         }
 
-        button {
-            flex: 1;
+        .step-description {
+            font-size: 14px;
 
-            border: none;
+            line-height: 1.7;
 
-            border-radius: 10px;
-
-            padding: 14px;
-
-            font-size: 16px;
-
-            font-weight: 600;
-
-            cursor: pointer;
+            color: #555;
         }
 
-        .back {
-            background: #e9e9e9;
+        .room-code {
+            display: inline-block;
 
-            color: #222;
+            margin-top: 8px;
+
+            padding: 7px 12px;
+
+            border-radius: 8px;
+
+            background: #eee;
+
+            font-family: monospace;
+
+            font-size: 14px;
         }
 
-        .next {
-            background: #111;
-
-            color: white;
-        }
-
-        button:hover {
-            opacity: 0.85;
-        }
-
-        .complete {
-            display: none;
-
+        .button {
             width: 100%;
 
+            margin-top: 15px;
+
+            padding: 14px;
+
             border: none;
 
             border-radius: 10px;
 
-            padding: 14px;
-
-            font-size: 16px;
-
-            font-weight: 600;
-
-            background: #111;
+            background: #222;
 
             color: white;
 
+            font-size: 16px;
+
+            font-weight: bold;
+
             cursor: pointer;
+
+            transition: 0.2s;
         }
 
-        .complete:hover {
-            opacity: 0.85;
+        .button:hover {
+            background: #444;
         }
 
-        @media (max-width: 600px) {
+        .note {
+            margin-top: 15px;
 
-            body {
-                padding: 15px;
-            }
+            text-align: center;
 
-            .container {
-                padding: 25px 20px;
-            }
+            font-size: 12px;
 
-            .logo {
-                font-size: 24px;
-            }
-
-            .buttons {
-                flex-direction: column;
-            }
+            color: #888;
         }
     </style>
 </head>
@@ -230,402 +160,130 @@
 
 <div class="container">
 
-    <div class="logo">
-        Mr.Red Banana Chat
-    </div>
+    <h1>ようこそ！</h1>
 
     <div class="subtitle">
-        はじめての方へ
-    </div>
-
-    <div class="progress">
-
-        <div class="dot active"></div>
-        <div class="dot"></div>
-        <div class="dot"></div>
-        <div class="dot"></div>
-
+        Mr.Red Banana 暇人チャッツの使い方
     </div>
 
 
-    <!-- =========================================
-         PAGE 1
-         ========================================= -->
+    <div class="step">
 
-    <div class="page active">
-
-        <div class="page-number">
-            STEP 1 / 4
+        <div class="step-number">
+            STEP 1
         </div>
 
-        <h1>
-            Mr.Red Banana Chatへようこそ！
-        </h1>
+        <div class="step-title">
+            ルームを作る
+        </div>
 
-        <p>
-            Mr.Red Banana Chatをご利用いただきありがとうございます。
-        </p>
+        <div class="step-description">
+            「ルームを作成」から、新しいチャットルームを作ることができます。
+            作成すると、専用のルームIDが発行されます。
+        </div>
 
-        <p>
-            Mr.Red Banana Chatは、
-            ユーザー同士のメッセージのやり取りを中心に、
-            AI機能など、さまざまなツールを
-            アプリ・またはブラウザで利用できるサービスです。
-        </p>
-
-        <div class="feature">
-
-            <div class="feature-title">
-                💬 チャット
-            </div>
-
-            <div>
-                ルームを作成して、
-                他のユーザーとメッセージをやり取りできます。
-            </div>
-
+        <div class="room-code">
+            例：1234567890
         </div>
 
     </div>
 
 
-    <!-- =========================================
-         PAGE 2
-         ========================================= -->
+    <div class="step">
 
-    <div class="page">
-
-        <div class="page-number">
-            STEP 2 / 4
+        <div class="step-number">
+            STEP 2
         </div>
 
-        <h1>
-            ルームについて
-        </h1>
-
-        <p>
-            Mr.Red Banana Chatでは、
-            ルームという場所を作って会話できます。
-        </p>
-
-        <div class="feature">
-
-            <div class="feature-title">
-                ① ルームを作成
-            </div>
-
-            <div>
-                新しいルームを作成すると、
-                専用のルームIDが発行されます。
-            </div>
-
+        <div class="step-title">
+            友達をルームに招待する
         </div>
 
-        <div class="feature">
-
-            <div class="feature-title">
-                ② ルームに参加
-            </div>
-
-            <div>
-                ルームIDを使って、
-                他のユーザーがルームに参加できます。
-            </div>
-
-        </div>
-
-        <div class="feature">
-
-            <div class="feature-title">
-                ③ パスワード
-            </div>
-
-            <div>
-                必要に応じて、
-                ルームにパスワードを設定することもできます。
-            </div>
-
+        <div class="step-description">
+            発行された10桁のルームIDを友達に伝えることで、
+            同じルームに参加できます。
         </div>
 
     </div>
 
 
-    <!-- =========================================
-         PAGE 3
-         ========================================= -->
+    <div class="step">
 
-    <div class="page">
-
-        <div class="page-number">
-            STEP 3 / 4
+        <div class="step-number">
+            STEP 3
         </div>
 
-        <h1>
-            これから増えていく機能
-        </h1>
-
-        <p>
-            Mr.Red Banana Chatは、
-            チャットだけで終わるサービスではありません。
-        </p>
-
-        <p>
-            今後、AI機能をはじめとした
-            さまざまな機能やツールを追加していく予定です。
-        </p>
-
-        <div class="feature">
-
-            <div class="feature-title">
-                🤖 AI機能
-            </div>
-
-            <div>
-                AIを活用した新しい機能を
-                今後追加していく予定です。
-            </div>
-
+        <div class="step-title">
+            チャットする
         </div>
 
-        <div class="feature">
-
-            <div class="feature-title">
-                🛠️ さまざまなツール
-            </div>
-
-            <div>
-                チャット以外にも、
-                便利で面白い機能を少しずつ追加していきます。
-            </div>
-
-        </div>
-
-        <p>
-            Mr.Red Banana Chatは、
-            これから進化していくサービスです。
-        </p>
-
-    </div>
-
-
-    <!-- =========================================
-         PAGE 4
-         ========================================= -->
-
-    <div class="page">
-
-        <div class="page-number">
-            STEP 4 / 4
-        </div>
-
-        <h1>
-            準備完了！
-        </h1>
-
-        <p>
-            これで基本的な説明は終了です。
-        </p>
-
-        <p>
-            さっそくMr.Red Banana Chatを
-            はじめてみましょう！
-        </p>
-
-        <div class="feature">
-
-            <div class="feature-title">
-                🔒 アカウントについて
-            </div>
-
-            <div>
-                アカウント情報は大切に管理してください。
-                他の人とパスワードを共有しないようにしましょう。
-            </div>
-
-        </div>
-
-        <div class="feature">
-
-            <div class="feature-title">
-                💡 困ったときは
-            </div>
-
-            <div>
-                不具合や問題を見つけた場合は、
-                サービス内のお知らせなどを確認してください。
-                それでもわからない場合、ルームID：88888888に参加し、
-                お問い合わせすることが可能です。
-            </div>
-
+        <div class="step-description">
+            ルームに参加すると、リアルタイムでメッセージを
+            送受信できます。
         </div>
 
     </div>
 
 
-    <!-- =========================================
-         BUTTONS
-         ========================================= -->
+    <div class="step">
 
-    <div class="buttons">
+        <div class="step-number">
+            STEP 4
+        </div>
 
-        <button
-            type="button"
-            class="back"
-            id="backButton"
-            onclick="previousPage()"
-        >
-            戻る
-        </button>
+        <div class="step-title">
+            ルームを管理する
+        </div>
 
-        <button
-            type="button"
-            class="next"
-            id="nextButton"
-            onclick="nextPage()"
-        >
-            次へ
-        </button>
+        <div class="step-description">
+            ルームにはメモを付けたり、
+            パスワードを設定したりすることができます。
+        </div>
 
     </div>
 
 
-    <!-- =========================================
-         COMPLETE BUTTON
-         ========================================= -->
+    <div class="step">
+
+        <div class="step-number">
+            STEP 5
+        </div>
+
+        <div class="step-title">
+            セキュリティについて
+        </div>
+
+        <div class="step-description">
+            パスワードを他人に教えないなど、
+            アカウントを安全に管理してください。
+            メールアドレスを登録している場合は、
+            アカウント復旧などにも利用できます。
+        </div>
+
+    </div>
+
 
     <form
-        method="POST"
         action="{{ url_for('complete_tutorial') }}"
+        method="POST"
     >
 
         <button
             type="submit"
-            class="complete"
-            id="completeButton"
+            class="button"
         >
-            Mr.Red Banana Chatをはじめる
+            はじめる
         </button>
 
     </form>
 
+
+    <div class="note">
+        いつでも楽しく、安全にチャットしましょう！
+    </div>
+
 </div>
-
-
-<script>
-
-    let currentPage = 0;
-
-    const pages =
-        document.querySelectorAll(".page");
-
-    const dots =
-        document.querySelectorAll(".dot");
-
-    const backButton =
-        document.getElementById("backButton");
-
-    const nextButton =
-        document.getElementById("nextButton");
-
-    const completeButton =
-        document.getElementById("completeButton");
-
-
-    function updatePage() {
-
-        pages.forEach(
-            function(page, index) {
-
-                page.classList.toggle(
-                    "active",
-                    index === currentPage
-                );
-
-            }
-        );
-
-
-        dots.forEach(
-            function(dot, index) {
-
-                dot.classList.toggle(
-                    "active",
-                    index === currentPage
-                );
-
-            }
-        );
-
-
-        if (currentPage === 0) {
-
-            backButton.style.visibility =
-                "hidden";
-
-        } else {
-
-            backButton.style.visibility =
-                "visible";
-
-        }
-
-
-        if (
-            currentPage ===
-            pages.length - 1
-        ) {
-
-            nextButton.style.display =
-                "none";
-
-            completeButton.style.display =
-                "block";
-
-        } else {
-
-            nextButton.style.display =
-                "block";
-
-            completeButton.style.display =
-                "none";
-
-        }
-
-    }
-
-
-    function nextPage() {
-
-        if (
-            currentPage <
-            pages.length - 1
-        ) {
-
-            currentPage++;
-
-            updatePage();
-
-        }
-
-    }
-
-
-    function previousPage() {
-
-        if (currentPage > 0) {
-
-            currentPage--;
-
-            updatePage();
-
-        }
-
-    }
-
-
-    updatePage();
-
-</script>
 
 </body>
 </html>
+```
