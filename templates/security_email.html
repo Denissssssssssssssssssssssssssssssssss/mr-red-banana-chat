@@ -3,16 +3,11 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>セキュリティ補強</title>
+    <title>セキュリティ設定 - Mr.Red Banana Chat</title>
 
     <style>
-
         * {
             box-sizing: border-box;
         }
@@ -25,48 +20,45 @@
             justify-content: center;
             align-items: center;
 
-            background: #f5f5f5;
-
             font-family:
                 -apple-system,
                 BlinkMacSystemFont,
                 "Segoe UI",
+                "Noto Sans JP",
                 sans-serif;
 
+            background: #f5f5f5;
             color: #222;
         }
 
         .container {
             width: 100%;
             max-width: 430px;
+            padding: 20px;
+        }
 
-            padding: 32px;
-
+        .card {
             background: white;
-
             border-radius: 16px;
+            padding: 32px 28px;
 
             box-shadow:
-                0 8px 30px rgba(0, 0, 0, 0.08);
+                0 4px 20px rgba(0, 0, 0, 0.08);
 
             text-align: center;
         }
 
         h1 {
-            margin-top: 0;
-            margin-bottom: 12px;
-
-            font-size: 26px;
+            margin: 0 0 18px;
+            font-size: 24px;
         }
 
         .description {
             margin-bottom: 26px;
 
             line-height: 1.7;
-
-            color: #555;
-
             font-size: 14px;
+            color: #555;
         }
 
         .email-form {
@@ -75,87 +67,73 @@
 
         input[type="email"] {
             width: 100%;
-
             padding: 13px 14px;
 
             border: 1px solid #ccc;
-
             border-radius: 8px;
 
             font-size: 15px;
-
             outline: none;
         }
 
         input[type="email"]:focus {
-            border-color: #666;
+            border-color: #555;
         }
 
-        .email-button {
+        .submit-button {
             width: 100%;
-
             margin-top: 10px;
 
             padding: 13px;
 
             border: none;
-
             border-radius: 8px;
 
             background: #222;
-
             color: white;
 
             font-size: 15px;
-
             cursor: pointer;
         }
 
-        .email-button:hover {
-            opacity: 0.85;
+        .submit-button:hover {
+            opacity: 0.9;
         }
 
         .divider {
             display: flex;
-
             align-items: center;
+            gap: 12px;
 
-            gap: 10px;
-
-            margin: 24px 0;
+            margin: 22px 0;
 
             color: #999;
-
             font-size: 12px;
         }
 
         .divider::before,
         .divider::after {
             content: "";
-
             flex: 1;
-
             height: 1px;
-
             background: #ddd;
         }
 
         .oauth-button {
+            display: block;
+
             width: 100%;
-
             margin-bottom: 10px;
-
             padding: 12px;
 
-            border: 1px solid #ddd;
-
+            border: 1px solid #ccc;
             border-radius: 8px;
 
             background: white;
-
             color: #222;
 
             font-size: 14px;
+            text-decoration: none;
 
             cursor: pointer;
         }
@@ -165,16 +143,14 @@
         }
 
         .skip {
-            display: block;
+            display: inline-block;
 
-            margin-top: 22px;
-
-            color: #999;
+            margin-top: 18px;
 
             font-size: 12px;
+            color: #888;
 
             text-decoration: underline;
-
             cursor: pointer;
         }
 
@@ -182,176 +158,116 @@
             color: #555;
         }
 
-        .message {
-            display: none;
+        .security-note {
+            margin-top: 22px;
 
-            margin-top: 15px;
+            font-size: 11px;
+            line-height: 1.6;
 
-            padding: 10px;
-
-            border-radius: 7px;
-
-            background: #fff3cd;
-
-            color: #856404;
-
-            font-size: 13px;
-
-            line-height: 1.5;
+            color: #999;
         }
-
     </style>
-
 </head>
-
 
 <body>
 
 <div class="container">
 
-    <h1>
-        セキュリティ補強
-    </h1>
+    <div class="card">
+
+        <h1>
+            セキュリティを強化しましょう
+        </h1>
+
+        <div class="description">
+            セキュリティ補強のため、<br>
+            メールアドレスを追加しましょう。
+            <br><br>
+            パスワードを忘れた場合などに、
+            アカウントを復旧できるようになります。
+        </div>
 
 
-    <div class="description">
+        <!-- ==============================
+             メールアドレス追加
+             ============================== -->
 
-        セキュリティ補強のため、<br>
-        メールアドレスを追加しましょう。<br><br>
-
-        パスワードを忘れた場合などに、
-        アカウントを安全に復旧できます。
-
-    </div>
-
-
-    <!-- =================================================
-         メールアドレス追加
-         ================================================= -->
-
-    <form
-        class="email-form"
-        action="/security_email"
-        method="post"
-    >
-
-        <input
-            type="email"
-            name="email"
-            placeholder="メールアドレス"
-            autocomplete="email"
+        <form
+            class="email-form"
+            action="/security_email"
+            method="post"
         >
 
-        <button
-            type="submit"
-            class="email-button"
+            <input
+                type="email"
+                name="email"
+                placeholder="メールアドレス"
+                autocomplete="email"
+                required
+            >
+
+            <button
+                type="submit"
+                class="submit-button"
+            >
+                メールを追加する
+            </button>
+
+        </form>
+
+
+        <div class="divider">
+            または
+        </div>
+
+
+        <!-- ==============================
+             OAuth
+             ============================== -->
+
+        <a
+            href="/auth/google"
+            class="oauth-button"
         >
-            メールアドレスを追加
-        </button>
+            Googleで続ける
+        </a>
 
-    </form>
+        <a
+            href="/auth/github"
+            class="oauth-button"
+        >
+            GitHubで続ける
+        </a>
+
+        <a
+            href="/auth/azure"
+            class="oauth-button"
+        >
+            Microsoft Accountで続ける
+        </a>
 
 
-    <!-- =================================================
-         OAuth
-         ================================================= -->
+        <!-- ==============================
+             スキップ
+             ============================== -->
 
-    <div class="divider">
-        または
+        <a
+            href="/skip_security_email"
+            class="skip"
+        >
+            スキップする
+        </a>
+
+
+        <div class="security-note">
+            メールアドレスの追加は任意です。
+            <br>
+            後から設定することもできます。
+        </div>
+
     </div>
-
-
-    <button
-        type="button"
-        class="oauth-button"
-        onclick="loginWithProvider('google')"
-    >
-        Googleで続行
-    </button>
-
-
-    <button
-        type="button"
-        class="oauth-button"
-        onclick="loginWithProvider('github')"
-    >
-        GitHubで続行
-    </button>
-
-
-    <button
-        type="button"
-        class="oauth-button"
-        onclick="loginWithProvider('azure')"
-    >
-        Microsoft Accountで続行
-    </button>
-
-
-    <!-- =================================================
-         メッセージ
-         ================================================= -->
-
-    <div
-        id="message"
-        class="message"
-    ></div>
-
-
-    <!-- =================================================
-         スキップ
-         ================================================= -->
-
-    <a
-        class="skip"
-        href="/skip_security_email"
-    >
-        今はスキップする
-    </a>
 
 </div>
-
-
-<script>
-
-    function loginWithProvider(provider) {
-
-        window.location.href =
-            "/auth/" + provider;
-
-    }
-
-
-    /*
-     * URLにエラーが返ってきた場合
-     */
-
-    const params =
-        new URLSearchParams(
-            window.location.search
-        );
-
-
-    const error =
-        params.get("error");
-
-
-    const message =
-        document.getElementById(
-            "message"
-        );
-
-
-    if (error) {
-
-        message.style.display = "block";
-
-        message.textContent =
-            "認証に失敗しました。もう一度お試しください。";
-
-    }
-
-</script>
 
 </body>
 
