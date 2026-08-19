@@ -62,7 +62,8 @@ app.config["SESSION_COOKIE_SECURE"] = (
 
 socketio = SocketIO(
     app,
-    cors_allowed_origins="*"
+    cors_allowed_origins="*",
+    async_mode="threading"
 )
 
 
