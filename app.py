@@ -72,6 +72,7 @@ SUPABASE_SECRET_KEY = os.environ.get(
     "SUPABASE_SECRET_KEY"
 )
 
+
 if not SUPABASE_URL:
     raise RuntimeError(
         "SUPABASE_URL が設定されていません"
@@ -91,8 +92,8 @@ if not SUPABASE_SECRET_KEY:
 # =========================================================
 # Supabase DB client
 #
-# Secret Keyはサーバー側だけで使用します。
-# ブラウザには絶対に出しません。
+# Secret Keyはサーバー側だけで使用。
+# ブラウザには絶対に出さない。
 # =========================================================
 
 db = create_client(
@@ -102,36 +103,9 @@ db = create_client(
 
 
 # =========================================================
-# Supabase Auth client
-#
-# 通常のAuth処理用
-# =========================================================
-
-def get_auth_client():
-
-    options = ClientOptions(
-        storage=FlaskSessionStorage(),
-        flow_type="pkce"
-    )
-
-    return create_client(
-        SUPABASE_URL,
-        SUPABASE_PUBLISHABLE_KEY,
-        options=options
-    )
-
-
-# =========================================================
-# Supabase Admin Auth
-#
-# SECRET KEYを使うためサーバー側限定。
-# =========================================================
-
-admin_auth = db.auth.admin
-
-
-# =========================================================
 # Flask Session Storage
+#
+# Supabase OAuth PKCE用
 # =========================================================
 
 class FlaskSessionStorage:
@@ -147,30 +121,20 @@ class FlaskSessionStorage:
 
 
 # =========================================================
-# 仮メールアドレス
-#
-# 例：
-# userid-ee718046-7615-4eaf-beee-2192d84b1909@mrb.invalid
-#
-# .invalid は実在しない予約ドメインです。
+# Supabase Auth client
 # =========================================================
 
-def make_placeholder_email(user_id):
+def get_auth_client():
 
-    return (
-        "userid-"
-        + str(user_id)
-        + "@mrb.invalid"
+    options = ClientOptions(
+        storage=FlaskSessionStorage(),
+        flow_type="pkce"
     )
 
-
-def is_placeholder_email(email):
-
-    if not email:
-        return False
-
-    return str(email).lower().endswith(
-        "@mrb.invalid"
+    return create_client(
+        SUPABASE_URL,
+        SUPABASE_PUBLISHABLE_KEY,
+        options=options
     )
 
 
@@ -265,6 +229,12 @@ def get_current_user():
 
 # =========================================================
 # プロフィール取得
+#
+# IMPORTANT:
+# profilesの新規作成はSupabaseの
+# on_auth_user_created Triggerに任せる。
+#
+# app.pyからprofilesへのINSERTは行わない。
 # =========================================================
 
 def get_profile(user_id):
@@ -273,8 +243,8 @@ def get_profile(user_id):
         db
         .table("profiles")
         .select(
-            "id,username,email,created_at,"
-            "tutorial_completed"
+            "id,username,created_at,"
+            "tutorial_completed,email,password_hash"
         )
         .eq(
             "id",
@@ -290,9 +260,19 @@ def get_profile(user_id):
 
 
 # =========================================================
-# プロフィール作成 / 確認
+# プロフィール確認
 #
-# Authユーザーが存在していることを前提に作成。
+# Supabase Trigger:
+#
+# auth.users
+#     ↓
+# on_auth_user_created
+#     ↓
+# handle_new_user()
+#     ↓
+# profiles
+#
+# という構成なので、ここではINSERTしない。
 # =========================================================
 
 def ensure_profile(user):
@@ -304,74 +284,34 @@ def ensure_profile(user):
     if profile:
         return profile, False
 
-    metadata = (
-        user.user_metadata
-        or {}
+    # -----------------------------------------------------
+    # Triggerの実行直後などで、まだ取得できない場合があるため
+    # 少しだけ再確認する。
+    # -----------------------------------------------------
+
+    import time
+
+    for _ in range(5):
+
+        time.sleep(0.2)
+
+        profile = get_profile(user_id)
+
+        if profile:
+            return profile, False
+
+    # -----------------------------------------------------
+    # ここではprofilesをINSERTしない。
+    #
+    # profilesの作成はSupabase Triggerが担当する。
+    # -----------------------------------------------------
+
+    print(
+        "WARNING: profile was not created by trigger:",
+        user_id
     )
 
-    username = (
-        metadata.get("username")
-        or metadata.get("user_name")
-        or metadata.get("preferred_username")
-        or metadata.get("name")
-        or (
-            user.email.split("@")[0]
-            if user.email
-            else "User"
-        )
-    )
-
-    username = str(username).strip()[:100]
-
-    if not username:
-        username = "User"
-
-    existing = (
-        db
-        .table("profiles")
-        .select("id")
-        .eq(
-            "username",
-            username
-        )
-        .execute()
-    )
-
-    if existing.data:
-
-        username = (
-            username
-            + "_"
-            + user_id[:8]
-        )
-
-    email = (
-        user.email
-        or make_placeholder_email(
-            user_id
-        )
-    )
-
-    result = (
-        db
-        .table("profiles")
-        .insert(
-            {
-                "id": user_id,
-                "username": username,
-                "email": email,
-                "tutorial_completed": False
-            }
-        )
-        .execute()
-    )
-
-    if result.data:
-        return result.data[0], True
-
-    profile = get_profile(user_id)
-
-    return profile, True
+    return None, False
 
 
 # =========================================================
@@ -385,7 +325,16 @@ def require_user():
     if not user:
         return None
 
-    ensure_profile(user)
+    profile, _ = ensure_profile(user)
+
+    if not profile:
+
+        print(
+            "require_user: profile not found:",
+            str(user.id)
+        )
+
+        return None
 
     return user
 
@@ -401,20 +350,19 @@ def redirect_after_auth(
 
     profile, created = ensure_profile(user)
 
+    if not profile:
+
+        return (
+            "プロフィールの作成を確認できませんでした。"
+            "SupabaseのTriggerを確認してください。"
+        ), 500
+
     if newly_created or created:
 
         session["new_registration"] = True
 
         return redirect(
-            url_for("security_email")
-        )
-
-    if is_placeholder_email(
-        profile.get("email")
-    ):
-
-        return redirect(
-            url_for("security_email")
+            url_for("terms")
         )
 
     if not profile.get(
@@ -446,18 +394,16 @@ def index():
 
     profile, _ = ensure_profile(user)
 
+    if not profile:
+
+        return redirect(
+            url_for("auth_error")
+        )
+
     if not profile.get(
         "tutorial_completed",
         False
     ):
-
-        if is_placeholder_email(
-            profile.get("email")
-        ):
-
-            return redirect(
-                url_for("security_email")
-            )
 
         return redirect(
             url_for("tutorial")
@@ -466,6 +412,10 @@ def index():
     username = profile["username"]
 
     user_id = str(user.id)
+
+    # -----------------------------------------------------
+    # ルーム履歴
+    # -----------------------------------------------------
 
     member_result = (
         db
@@ -549,6 +499,10 @@ def index():
             )
         )
 
+    # -----------------------------------------------------
+    # CREATERログ
+    # -----------------------------------------------------
+
     creator_result = (
         db
         .table("creator_logs")
@@ -584,16 +538,24 @@ def index():
 
 
 # =========================================================
-# 新規登録
+# 認証エラー
+# =========================================================
+
+@app.route("/auth_error")
+def auth_error():
+
+    return (
+        "プロフィール情報を取得できませんでした。"
+        "Supabaseの設定を確認してください。"
+    ), 500
+
+
+# =========================================================
+# メール/パスワード 新規登録
 #
-# メールアドレスは不要。
-#
-# ① 一時メールでAuthユーザー作成
-# ② AuthがUUIDを生成
-# ③ UUIDから正式な仮メールを生成
-# ④ Authユーザーのメールを更新
-# ⑤ profiles作成
-# ⑥ 自動ログイン
+# 注意:
+# Supabase Authがユーザーを作成する。
+# profilesはTriggerが自動作成する。
 # =========================================================
 
 @app.route(
@@ -616,57 +578,60 @@ def register():
         )
     )
 
-    if not username:
+    email = str(
+        request.form.get(
+            "email",
+            ""
+        )
+    ).strip()
+
+    if not username or not password:
 
         return (
-            "ユーザーネームを入力してください"
+            "ユーザーネームとパスワードを入力してください"
         ), 400
 
-    if not password:
+    # -----------------------------------------------------
+    # Supabase Authではメールアドレスが必要。
+    #
+    # メールを省略した場合は、仮メールを使用する。
+    # 本物のメールは後から登録できる設計。
+    # -----------------------------------------------------
 
-        return (
-            "パスワードを入力してください"
-        ), 400
+    if not email:
 
-    if len(password) < 8:
-
-        return (
-            "パスワードは8文字以上にしてください"
-        ), 400
-
-    try:
-
-        # -------------------------------------------------
-        # 仮メールをまず作成
-        #
-        # Authユーザー作成後にUUIDが分かるため、
-        # 最初は一時的なメールを使用します。
-        # -------------------------------------------------
-
-        temporary_email = (
-            "creating-"
-            + os.urandom(16).hex()
+        email = (
+            "register-"
+            + str(random.randint(
+                1000000000,
+                9999999999
+            ))
             + "@mrb.invalid"
         )
 
-        admin_response = (
-            admin_auth.create_user(
+    try:
+
+        auth_client = get_auth_client()
+
+        response = (
+            auth_client
+            .auth
+            .sign_up(
                 {
-                    "email":
-                        temporary_email,
-                    "password":
-                        password,
-                    "email_confirm":
-                        True,
-                    "user_metadata": {
-                        "username":
-                            username
+                    "email": email,
+                    "password": password,
+                    "options": {
+                        "data": {
+                            "username":
+                                username
+                        }
                     }
                 }
             )
         )
 
-        user = admin_response.user
+        auth_session = response.session
+        user = response.user
 
         if not user:
 
@@ -674,130 +639,55 @@ def register():
                 "ユーザーを作成できませんでした"
             ), 400
 
-        user_id = str(user.id)
-
         # -------------------------------------------------
-        # UUIDを使った最終仮メール
+        # Authセッションが即時発行された場合
         # -------------------------------------------------
 
-        placeholder_email = (
-            make_placeholder_email(
-                user_id
+        if auth_session:
+
+            session["access_token"] = (
+                auth_session.access_token
             )
-        )
 
-        # -------------------------------------------------
-        # Authユーザーのメールを変更
-        # -------------------------------------------------
-
-        admin_auth.update_user_by_id(
-            user_id,
-            {
-                "email":
-                    placeholder_email,
-                "email_confirm":
-                    True
-            }
-        )
-
-        # -------------------------------------------------
-        # profiles作成
-        #
-        # この時点では auth.users に確実に存在します。
-        # -------------------------------------------------
-
-        profile_result = (
-            db
-            .table("profiles")
-            .insert(
-                {
-                    "id":
-                        user_id,
-                    "username":
-                        username,
-                    "email":
-                        placeholder_email,
-                    "tutorial_completed":
-                        False
-                }
+            session["refresh_token"] = (
+                auth_session.refresh_token
             )
-            .execute()
-        )
 
-        if not profile_result.data:
+            session.modified = True
 
-            # プロフィール作成に失敗したら
-            # Authユーザーも削除して中途半端な状態を防ぐ
-            try:
+            # -------------------------------------------------
+            # profilesはTriggerが作成する
+            # -------------------------------------------------
 
-                admin_auth.delete_user(
-                    user_id
-                )
+            profile = None
 
-            except Exception as cleanup_error:
+            for _ in range(10):
 
-                print(
-                    "cleanup error:",
-                    repr(cleanup_error)
-                )
+                profile, _ = ensure_profile(user)
 
-            return (
-                "プロフィールを作成できませんでした"
-            ), 500
+                if profile:
+                    break
 
-        # -------------------------------------------------
-        # 自動ログイン
-        #
-        # Confirm email ONでも、
-        # admin側でemail_confirm=Trueにしているので
-        # パスワードログインできます。
-        # -------------------------------------------------
+            if not profile:
 
-        auth_client = get_auth_client()
+                return (
+                    "Authユーザーは作成されましたが、"
+                    "プロフィールを取得できませんでした。"
+                ), 500
 
-        login_response = (
-            auth_client
-            .auth
-            .sign_in_with_password(
-                {
-                    "email":
-                        placeholder_email,
-                    "password":
-                        password
-                }
+            session["new_registration"] = True
+
+            return redirect(
+                url_for("security_email")
             )
-        )
 
-        auth_session = (
-            login_response.session
-        )
+        # -------------------------------------------------
+        # メール確認が必要な場合
+        # -------------------------------------------------
 
-        if not auth_session:
-
-            return (
-                "アカウントは作成されましたが、"
-                "自動ログインに失敗しました。"
-            ), 500
-
-        session["access_token"] = (
-            auth_session.access_token
-        )
-
-        session["refresh_token"] = (
-            auth_session.refresh_token
-        )
-
-        session["new_registration"] = True
-        session.modified = True
-
-        print(
-            "registration success:",
-            user_id,
-            placeholder_email
-        )
-
-        return redirect(
-            url_for("security_email")
+        return (
+            "登録しました。"
+            "確認メールを確認してください。"
         )
 
     except Exception as e:
@@ -814,9 +704,7 @@ def register():
 
 
 # =========================================================
-# ログイン
-#
-# ユーザーネームでもメールでもログイン可能。
+# メール/パスワード ログイン
 # =========================================================
 
 @app.route(
@@ -825,7 +713,7 @@ def register():
 )
 def login():
 
-    login_id = str(
+    email = str(
         request.form.get(
             "username",
             ""
@@ -839,47 +727,13 @@ def login():
         )
     )
 
-    if not login_id or not password:
+    if not email or not password:
 
         return (
-            "ユーザーネームとパスワードを入力してください"
+            "メールアドレスとパスワードを入力してください"
         ), 400
 
     try:
-
-        email = login_id
-
-        # -------------------------------------------------
-        # メールアドレスではなく
-        # ユーザーネームで入力された場合
-        # -------------------------------------------------
-
-        if "@" not in login_id:
-
-            profile_result = (
-                db
-                .table("profiles")
-                .select(
-                    "email"
-                )
-                .eq(
-                    "username",
-                    login_id
-                )
-                .limit(1)
-                .execute()
-            )
-
-            if not profile_result.data:
-
-                return (
-                    "ユーザーネームまたはパスワードが違います"
-                ), 401
-
-            email = (
-                profile_result.data[0]
-                .get("email")
-            )
 
         auth_client = get_auth_client()
 
@@ -936,156 +790,6 @@ def login():
 
 
 # =========================================================
-# セキュリティメール画面
-# =========================================================
-
-@app.route(
-    "/security_email"
-)
-def security_email():
-
-    user = require_user()
-
-    if not user:
-
-        return redirect("/")
-
-    profile, _ = ensure_profile(user)
-
-    return render_template(
-        "security_email.html",
-        username=profile.get(
-            "username",
-            ""
-        ),
-        email=profile.get(
-            "email",
-            ""
-        ),
-        email_is_placeholder=
-            is_placeholder_email(
-                profile.get("email")
-            )
-    )
-
-
-# =========================================================
-# セキュリティメール登録
-#
-# 本物のメールアドレスを追加する。
-# =========================================================
-
-@app.route(
-    "/security_email",
-    methods=["POST"]
-)
-def save_security_email():
-
-    user = require_user()
-
-    if not user:
-
-        return redirect("/")
-
-    email = str(
-        request.form.get(
-            "email",
-            ""
-        )
-    ).strip().lower()
-
-    if not email:
-
-        return (
-            "メールアドレスを入力してください"
-        ), 400
-
-    if "@" not in email:
-
-        return (
-            "正しいメールアドレスを入力してください"
-        ), 400
-
-    try:
-
-        user_id = str(user.id)
-
-        # -------------------------------------------------
-        # Auth側のメールを更新
-        #
-        # Admin APIなのでサーバー側のみで実行。
-        # -------------------------------------------------
-
-        admin_auth.update_user_by_id(
-            user_id,
-            {
-                "email": email,
-                "email_confirm": False
-            }
-        )
-
-        # -------------------------------------------------
-        # profiles側も更新
-        # -------------------------------------------------
-
-        (
-            db
-            .table("profiles")
-            .update(
-                {
-                    "email": email
-                }
-            )
-            .eq(
-                "id",
-                user_id
-            )
-            .execute()
-        )
-
-        session["security_email_added"] = True
-
-        return redirect(
-            url_for("terms")
-        )
-
-    except Exception as e:
-
-        print(
-            "security email error:",
-            repr(e)
-        )
-
-        return (
-            "メールアドレスの登録に失敗しました: "
-            + str(e)
-        ), 400
-
-
-# =========================================================
-# セキュリティメールをスキップ
-# =========================================================
-
-@app.route(
-    "/skip_security_email",
-    methods=["GET", "POST"]
-)
-def skip_security_email():
-
-    user = require_user()
-
-    if not user:
-
-        return redirect("/")
-
-    session["security_email_skipped"] = True
-
-    return redirect(
-        url_for("terms")
-    )
-
-
-# =========================================================
 # OAuth開始
 # =========================================================
 
@@ -1096,8 +800,8 @@ def oauth_login(provider):
 
     allowed_providers = {
         "google",
-        "github",
-        "azure"
+        "azure",
+        "github"
     }
 
     if provider not in allowed_providers:
@@ -1231,17 +935,9 @@ def oauth_callback():
                 "ユーザー情報を取得できませんでした"
             ), 500
 
-        profile = get_profile(
-            str(user.id)
-        )
-
-        newly_created = profile is None
-
-        ensure_profile(user)
-
         return redirect_after_auth(
             user,
-            newly_created=newly_created
+            newly_created=False
         )
 
     except Exception as e:
@@ -1253,6 +949,111 @@ def oauth_callback():
 
         return (
             "OAuthログイン処理でエラーが発生しました"
+        ), 500
+
+
+# =========================================================
+# セキュリティメール追加画面
+# =========================================================
+
+@app.route(
+    "/security_email"
+)
+def security_email():
+
+    user = require_user()
+
+    if not user:
+
+        return redirect("/")
+
+    return render_template(
+        "security_email.html"
+    )
+
+
+# =========================================================
+# セキュリティメールをスキップ
+# =========================================================
+
+@app.route(
+    "/skip_security_email",
+    methods=["POST", "GET"]
+)
+def skip_security_email():
+
+    user = require_user()
+
+    if not user:
+
+        return redirect("/")
+
+    return redirect(
+        url_for("terms")
+    )
+
+
+# =========================================================
+# セキュリティメール保存
+#
+# 現時点ではprofiles.emailを更新。
+# =========================================================
+
+@app.route(
+    "/save_security_email",
+    methods=["POST"]
+)
+def save_security_email():
+
+    user = require_user()
+
+    if not user:
+
+        return redirect("/")
+
+    email = str(
+        request.form.get(
+            "email",
+            ""
+        )
+    ).strip()
+
+    if not email:
+
+        return redirect(
+            url_for("security_email")
+        )
+
+    try:
+
+        (
+            db
+            .table("profiles")
+            .update(
+                {
+                    "email": email
+                }
+            )
+            .eq(
+                "id",
+                str(user.id)
+            )
+            .execute()
+        )
+
+        return redirect(
+            url_for("terms")
+        )
+
+    except Exception as e:
+
+        print(
+            "save_security_email error:",
+            repr(e)
+        )
+
+        return (
+            "メールアドレスの保存に失敗しました"
         ), 500
 
 
@@ -1272,6 +1073,12 @@ def terms():
         return redirect("/")
 
     profile, _ = ensure_profile(user)
+
+    if not profile:
+
+        return redirect(
+            url_for("auth_error")
+        )
 
     if profile.get(
         "tutorial_completed",
@@ -1324,6 +1131,12 @@ def tutorial():
         return redirect("/")
 
     profile, _ = ensure_profile(user)
+
+    if not profile:
+
+        return redirect(
+            url_for("auth_error")
+        )
 
     if profile.get(
         "tutorial_completed",
@@ -1390,16 +1203,6 @@ def complete_tutorial():
 
     session.pop(
         "terms_accepted",
-        None
-    )
-
-    session.pop(
-        "security_email_added",
-        None
-    )
-
-    session.pop(
-        "security_email_skipped",
         None
     )
 
@@ -1722,6 +1525,10 @@ def set_room_password():
         settings.get("password_hash")
     )
 
+    # -----------------------------------------------------
+    # OFF
+    # -----------------------------------------------------
+
     if not enabled:
 
         (
@@ -1750,6 +1557,10 @@ def set_room_password():
             }
         )
 
+    # -----------------------------------------------------
+    # 既存パスワードを再利用
+    # -----------------------------------------------------
+
     if old_password_hash:
 
         (
@@ -1777,6 +1588,10 @@ def set_room_password():
                 "password_changed": False
             }
         )
+
+    # -----------------------------------------------------
+    # 初回設定
+    # -----------------------------------------------------
 
     if not new_password:
 
@@ -2402,6 +2217,9 @@ def handle_message(data):
 
     profile, _ = ensure_profile(user)
 
+    if not profile:
+        return
+
     emit(
         "chat_message",
         {
@@ -2433,6 +2251,9 @@ def call_started(data):
     )
 
     profile, _ = ensure_profile(user)
+
+    if not profile:
+        return
 
     socketio.emit(
         "call_notification",
@@ -2466,6 +2287,9 @@ def call_ended(data):
 
     profile, _ = ensure_profile(user)
 
+    if not profile:
+        return
+
     socketio.emit(
         "call_end_notification",
         {
@@ -2491,6 +2315,9 @@ def add_creator_log(data):
         return
 
     profile, _ = ensure_profile(user)
+
+    if not profile:
+        return
 
     if profile["username"] != "開発者":
         return
@@ -2547,6 +2374,9 @@ def delete_creator_log(data):
         return
 
     profile, _ = ensure_profile(user)
+
+    if not profile:
+        return
 
     if profile["username"] != "開発者":
         return
@@ -2613,6 +2443,5 @@ if __name__ == "__main__":
     socketio.run(
         app,
         host="0.0.0.0",
-        port=port,
-        allow_unsafe_werkzeug=True
+        port=port
     )
