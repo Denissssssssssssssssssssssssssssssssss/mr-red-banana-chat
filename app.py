@@ -49,16 +49,12 @@ app.config["SESSION_COOKIE_SECURE"] = (
 
 # =========================================================
 # Socket.IO
-#
-# IMPORTANT:
-# eventletは使用しません。
-# illegal request line対策としてthreadingを使用します。
 # =========================================================
 
 socketio = SocketIO(
     app,
     cors_allowed_origins="*",
-    async_mode="threading",
+    async_mode="threading"
 )
 
 
@@ -66,9 +62,7 @@ socketio = SocketIO(
 # Environment variables
 # =========================================================
 
-SUPABASE_URL = os.environ.get(
-    "SUPABASE_URL"
-)
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
 
 SUPABASE_PUBLISHABLE_KEY = os.environ.get(
     "SUPABASE_PUBLISHABLE_KEY"
@@ -77,7 +71,6 @@ SUPABASE_PUBLISHABLE_KEY = os.environ.get(
 SUPABASE_SECRET_KEY = os.environ.get(
     "SUPABASE_SECRET_KEY"
 )
-
 
 if not SUPABASE_URL:
     raise RuntimeError(
@@ -96,9 +89,10 @@ if not SUPABASE_SECRET_KEY:
 
 
 # =========================================================
-# Supabase
+# Supabase DB client
 #
 # Secret Keyはサーバー側だけで使用します。
+# ブラウザには絶対に出しません。
 # =========================================================
 
 db = create_client(
@@ -108,24 +102,9 @@ db = create_client(
 
 
 # =========================================================
-# Supabase Auth用Storage
-# OAuth PKCEの状態保存用
-# =========================================================
-
-class FlaskSessionStorage:
-
-    def get_item(self, key):
-        return session.get(key)
-
-    def set_item(self, key, value):
-        session[key] = value
-
-    def remove_item(self, key):
-        session.pop(key, None)
-
-
-# =========================================================
 # Supabase Auth client
+#
+# 通常のAuth処理用
 # =========================================================
 
 def get_auth_client():
@@ -143,42 +122,136 @@ def get_auth_client():
 
 
 # =========================================================
-# 現在ログインしているユーザー
+# Supabase Admin Auth
 #
-# 今回の通常ログインはprofilesを使用します。
-# OAuthログイン時はSupabase Authのユーザーを使用します。
+# SECRET KEYを使うためサーバー側限定。
+# =========================================================
+
+admin_auth = db.auth.admin
+
+
+# =========================================================
+# Flask Session Storage
+# =========================================================
+
+class FlaskSessionStorage:
+
+    def get_item(self, key):
+        return session.get(key)
+
+    def set_item(self, key, value):
+        session[key] = value
+
+    def remove_item(self, key):
+        session.pop(key, None)
+
+
+# =========================================================
+# 仮メールアドレス
+#
+# 例：
+# userid-ee718046-7615-4eaf-beee-2192d84b1909@mrb.invalid
+#
+# .invalid は実在しない予約ドメインです。
+# =========================================================
+
+def make_placeholder_email(user_id):
+
+    return (
+        "userid-"
+        + str(user_id)
+        + "@mrb.invalid"
+    )
+
+
+def is_placeholder_email(email):
+
+    if not email:
+        return False
+
+    return str(email).lower().endswith(
+        "@mrb.invalid"
+    )
+
+
+# =========================================================
+# 現在のSupabaseユーザー
 # =========================================================
 
 def get_current_user():
 
-    user_id = session.get(
-        "user_id"
+    access_token = session.get(
+        "access_token"
     )
 
-    if not user_id:
+    refresh_token = session.get(
+        "refresh_token"
+    )
+
+    if not access_token:
         return None
 
     try:
 
-        result = (
-            db
-            .table("profiles")
-            .select(
-                "id,username,email,password_hash,"
-                "tutorial_completed"
+        auth_client = get_auth_client()
+
+        if refresh_token:
+
+            auth_client.auth.set_session(
+                access_token,
+                refresh_token
             )
-            .eq(
-                "id",
-                user_id
+
+        else:
+
+            auth_client.auth.set_session(
+                access_token,
+                ""
             )
-            .execute()
+
+        current_session = (
+            auth_client
+            .auth
+            .get_session()
         )
 
-        if not result.data:
-            session.clear()
+        if (
+            current_session
+            and current_session.session
+        ):
+
+            current = (
+                current_session.session
+            )
+
+            session["access_token"] = (
+                current.access_token
+            )
+
+            if current.refresh_token:
+
+                session["refresh_token"] = (
+                    current.refresh_token
+                )
+
+            access_token = (
+                current.access_token
+            )
+
+        response = (
+            auth_client
+            .auth
+            .get_user(
+                access_token
+            )
+        )
+
+        user = response.user
+
+        if not user:
             return None
 
-        return result.data[0]
+        return user
 
     except Exception as e:
 
@@ -196,37 +269,30 @@ def get_current_user():
 
 def get_profile(user_id):
 
-    try:
-
-        result = (
-            db
-            .table("profiles")
-            .select(
-                "id,username,email,password_hash,"
-                "tutorial_completed"
-            )
-            .eq(
-                "id",
-                str(user_id)
-            )
-            .execute()
+    result = (
+        db
+        .table("profiles")
+        .select(
+            "id,username,email,created_at,"
+            "tutorial_completed"
         )
-
-        if result.data:
-            return result.data[0]
-
-    except Exception as e:
-
-        print(
-            "get_profile error:",
-            repr(e)
+        .eq(
+            "id",
+            user_id
         )
+        .execute()
+    )
+
+    if result.data:
+        return result.data[0]
 
     return None
 
 
 # =========================================================
-# プロフィール作成
+# プロフィール作成 / 確認
+#
+# Authユーザーが存在していることを前提に作成。
 # =========================================================
 
 def ensure_profile(user):
@@ -239,26 +305,26 @@ def ensure_profile(user):
         return profile, False
 
     metadata = (
-        getattr(
-            user,
-            "user_metadata",
-            None
-        )
+        user.user_metadata
         or {}
     )
 
     username = (
-        metadata.get("user_name")
+        metadata.get("username")
+        or metadata.get("user_name")
         or metadata.get("preferred_username")
         or metadata.get("name")
         or (
             user.email.split("@")[0]
-            if getattr(user, "email", None)
+            if user.email
             else "User"
         )
     )
 
-    username = str(username)[:100]
+    username = str(username).strip()[:100]
+
+    if not username:
+        username = "User"
 
     existing = (
         db
@@ -279,40 +345,33 @@ def ensure_profile(user):
             + user_id[:8]
         )
 
-    try:
-
-        result = (
-            db
-            .table("profiles")
-            .insert(
-                {
-                    "id": user_id,
-                    "username": username,
-                    "email": getattr(
-                        user,
-                        "email",
-                        None
-                    ),
-                    "password_hash": None,
-                    "tutorial_completed": False,
-                }
-            )
-            .execute()
+    email = (
+        user.email
+        or make_placeholder_email(
+            user_id
         )
+    )
 
-        if result.data:
-            return result.data[0], True
-
-    except Exception as e:
-
-        print(
-            "ensure_profile insert error:",
-            repr(e)
+    result = (
+        db
+        .table("profiles")
+        .insert(
+            {
+                "id": user_id,
+                "username": username,
+                "email": email,
+                "tutorial_completed": False
+            }
         )
+        .execute()
+    )
+
+    if result.data:
+        return result.data[0], True
 
     profile = get_profile(user_id)
 
-    return profile, bool(profile)
+    return profile, True
 
 
 # =========================================================
@@ -326,47 +385,36 @@ def require_user():
     if not user:
         return None
 
+    ensure_profile(user)
+
     return user
 
 
 # =========================================================
-# 認証後の移動先
+# 初回ログイン後の移動先
 # =========================================================
 
 def redirect_after_auth(
-    user_id,
-    newly_created=False,
-    security_page=False
+    user,
+    newly_created=False
 ):
 
-    profile = get_profile(
-        user_id
-    )
+    profile, created = ensure_profile(user)
 
-    if not profile:
-        return redirect("/")
-
-    session["user_id"] = str(
-        user_id
-    )
-
-    session.modified = True
-
-    if security_page:
-        return redirect(
-            url_for(
-                "security_email"
-            )
-        )
-
-    if newly_created:
+    if newly_created or created:
 
         session["new_registration"] = True
 
         return redirect(
-            url_for(
-                "security_email"
-            )
+            url_for("security_email")
+        )
+
+    if is_placeholder_email(
+        profile.get("email")
+    ):
+
+        return redirect(
+            url_for("security_email")
         )
 
     if not profile.get(
@@ -375,9 +423,7 @@ def redirect_after_auth(
     ):
 
         return redirect(
-            url_for(
-                "tutorial"
-            )
+            url_for("tutorial")
         )
 
     return redirect("/")
@@ -390,7 +436,7 @@ def redirect_after_auth(
 @app.route("/")
 def index():
 
-    user = require_user()
+    user = get_current_user()
 
     if not user:
 
@@ -398,39 +444,28 @@ def index():
             "auth.html"
         )
 
-    profile = user
+    profile, _ = ensure_profile(user)
 
     if not profile.get(
         "tutorial_completed",
         False
     ):
 
-        if session.get(
-            "new_registration",
-            False
+        if is_placeholder_email(
+            profile.get("email")
         ):
 
             return redirect(
-                url_for(
-                    "security_email"
-                )
+                url_for("security_email")
             )
 
         return redirect(
-            url_for(
-                "tutorial"
-            )
+            url_for("tutorial")
         )
 
     username = profile["username"]
 
-    user_id = str(
-        profile["id"]
-    )
-
-    # -----------------------------------------------------
-    # ルーム履歴
-    # -----------------------------------------------------
+    user_id = str(user.id)
 
     member_result = (
         db
@@ -495,7 +530,9 @@ def index():
         if settings_result.data:
 
             locked = bool(
-                settings_result.data[0].get(
+                settings_result
+                .data[0]
+                .get(
                     "password_enabled",
                     False
                 )
@@ -511,10 +548,6 @@ def index():
                 locked
             )
         )
-
-    # -----------------------------------------------------
-    # CREATERログ
-    # -----------------------------------------------------
 
     creator_result = (
         db
@@ -553,14 +586,14 @@ def index():
 # =========================================================
 # 新規登録
 #
-# メールは必須ではありません。
+# メールアドレスは不要。
 #
-# profiles:
-#   id
-#   username
-#   email
-#   password_hash
-#   tutorial_completed
+# ① 一時メールでAuthユーザー作成
+# ② AuthがUUIDを生成
+# ③ UUIDから正式な仮メールを生成
+# ④ Authユーザーのメールを更新
+# ⑤ profiles作成
+# ⑥ 自動ログイン
 # =========================================================
 
 @app.route(
@@ -595,12 +628,6 @@ def register():
             "パスワードを入力してください"
         ), 400
 
-    if len(username) > 100:
-
-        return (
-            "ユーザーネームが長すぎます"
-        ), 400
-
     if len(password) < 8:
 
         return (
@@ -610,56 +637,86 @@ def register():
     try:
 
         # -------------------------------------------------
-        # ユーザーネーム重複確認
+        # 仮メールをまず作成
+        #
+        # Authユーザー作成後にUUIDが分かるため、
+        # 最初は一時的なメールを使用します。
         # -------------------------------------------------
 
-        existing = (
-            db
-            .table("profiles")
-            .select("id")
-            .eq(
-                "username",
-                username
-            )
-            .execute()
+        temporary_email = (
+            "creating-"
+            + os.urandom(16).hex()
+            + "@mrb.invalid"
         )
 
-        if existing.data:
+        admin_response = (
+            admin_auth.create_user(
+                {
+                    "email":
+                        temporary_email,
+                    "password":
+                        password,
+                    "email_confirm":
+                        True,
+                    "user_metadata": {
+                        "username":
+                            username
+                    }
+                }
+            )
+        )
+
+        user = admin_response.user
+
+        if not user:
 
             return (
-                "そのユーザーネームはすでに使用されています"
+                "ユーザーを作成できませんでした"
             ), 400
 
+        user_id = str(user.id)
+
         # -------------------------------------------------
-        # UUIDを生成
-        #
-        # Supabase Authのメールを必須にしないため、
-        # 通常のユーザー名/パスワードアカウントは
-        # profilesで管理します。
+        # UUIDを使った最終仮メール
         # -------------------------------------------------
 
-        import uuid
-
-        user_id = str(
-            uuid.uuid4()
-        )
-
-        password_hash = (
-            generate_password_hash(
-                password
+        placeholder_email = (
+            make_placeholder_email(
+                user_id
             )
         )
 
-        result = (
+        # -------------------------------------------------
+        # Authユーザーのメールを変更
+        # -------------------------------------------------
+
+        admin_auth.update_user_by_id(
+            user_id,
+            {
+                "email":
+                    placeholder_email,
+                "email_confirm":
+                    True
+            }
+        )
+
+        # -------------------------------------------------
+        # profiles作成
+        #
+        # この時点では auth.users に確実に存在します。
+        # -------------------------------------------------
+
+        profile_result = (
             db
             .table("profiles")
             .insert(
                 {
-                    "id": user_id,
-                    "username": username,
-                    "email": None,
-                    "password_hash":
-                        password_hash,
+                    "id":
+                        user_id,
+                    "username":
+                        username,
+                    "email":
+                        placeholder_email,
                     "tutorial_completed":
                         False
                 }
@@ -667,38 +724,80 @@ def register():
             .execute()
         )
 
-        if not result.data:
+        if not profile_result.data:
+
+            # プロフィール作成に失敗したら
+            # Authユーザーも削除して中途半端な状態を防ぐ
+            try:
+
+                admin_auth.delete_user(
+                    user_id
+                )
+
+            except Exception as cleanup_error:
+
+                print(
+                    "cleanup error:",
+                    repr(cleanup_error)
+                )
 
             return (
-                "アカウントを作成できませんでした"
+                "プロフィールを作成できませんでした"
             ), 500
 
         # -------------------------------------------------
-        # Flaskセッション
+        # 自動ログイン
+        #
+        # Confirm email ONでも、
+        # admin側でemail_confirm=Trueにしているので
+        # パスワードログインできます。
         # -------------------------------------------------
 
-        session.clear()
+        auth_client = get_auth_client()
 
-        session["user_id"] = user_id
+        login_response = (
+            auth_client
+            .auth
+            .sign_in_with_password(
+                {
+                    "email":
+                        placeholder_email,
+                    "password":
+                        password
+                }
+            )
+        )
+
+        auth_session = (
+            login_response.session
+        )
+
+        if not auth_session:
+
+            return (
+                "アカウントは作成されましたが、"
+                "自動ログインに失敗しました。"
+            ), 500
+
+        session["access_token"] = (
+            auth_session.access_token
+        )
+
+        session["refresh_token"] = (
+            auth_session.refresh_token
+        )
+
         session["new_registration"] = True
-        session["terms_accepted"] = False
-
         session.modified = True
 
         print(
             "registration success:",
-            username,
-            user_id
+            user_id,
+            placeholder_email
         )
 
-        # -------------------------------------------------
-        # 次はセキュリティメール設定
-        # -------------------------------------------------
-
         return redirect(
-            url_for(
-                "security_email"
-            )
+            url_for("security_email")
         )
 
     except Exception as e:
@@ -715,9 +814,9 @@ def register():
 
 
 # =========================================================
-# 通常ログイン
+# ログイン
 #
-# ユーザーネーム + パスワード
+# ユーザーネームでもメールでもログイン可能。
 # =========================================================
 
 @app.route(
@@ -726,7 +825,7 @@ def register():
 )
 def login():
 
-    username = str(
+    login_id = str(
         request.form.get(
             "username",
             ""
@@ -740,7 +839,7 @@ def login():
         )
     )
 
-    if not username or not password:
+    if not login_id or not password:
 
         return (
             "ユーザーネームとパスワードを入力してください"
@@ -748,76 +847,81 @@ def login():
 
     try:
 
-        result = (
-            db
-            .table("profiles")
-            .select(
-                "id,username,email,password_hash,"
-                "tutorial_completed"
-            )
-            .eq(
-                "username",
-                username
-            )
-            .execute()
-        )
-
-        if not result.data:
-
-            return (
-                "ログインに失敗しました"
-            ), 401
-
-        profile = result.data[0]
-
-        password_hash = profile.get(
-            "password_hash"
-        )
-
-        if not password_hash:
-
-            return (
-                "このアカウントでは通常ログインを使用できません"
-            ), 401
-
-        if not check_password_hash(
-            password_hash,
-            password
-        ):
-
-            return (
-                "ログインに失敗しました"
-            ), 401
+        email = login_id
 
         # -------------------------------------------------
-        # ログイン成功
+        # メールアドレスではなく
+        # ユーザーネームで入力された場合
         # -------------------------------------------------
 
-        session.clear()
+        if "@" not in login_id:
 
-        session["user_id"] = str(
-            profile["id"]
+            profile_result = (
+                db
+                .table("profiles")
+                .select(
+                    "email"
+                )
+                .eq(
+                    "username",
+                    login_id
+                )
+                .limit(1)
+                .execute()
+            )
+
+            if not profile_result.data:
+
+                return (
+                    "ユーザーネームまたはパスワードが違います"
+                ), 401
+
+            email = (
+                profile_result.data[0]
+                .get("email")
+            )
+
+        auth_client = get_auth_client()
+
+        response = (
+            auth_client
+            .auth
+            .sign_in_with_password(
+                {
+                    "email": email,
+                    "password": password
+                }
+            )
+        )
+
+        auth_session = response.session
+        user = response.user
+
+        if not auth_session or not user:
+
+            return (
+                "ログインできませんでした"
+            ), 401
+
+        session["access_token"] = (
+            auth_session.access_token
+        )
+
+        session["refresh_token"] = (
+            auth_session.refresh_token
         )
 
         session.modified = True
 
         print(
             "login success:",
-            username
+            str(user.id)
         )
 
-        if not profile.get(
-            "tutorial_completed",
-            False
-        ):
-
-            return redirect(
-                url_for(
-                    "tutorial"
-                )
-            )
-
-        return redirect("/")
+        return redirect_after_auth(
+            user,
+            newly_created=False
+        )
 
     except Exception as e:
 
@@ -832,9 +936,157 @@ def login():
 
 
 # =========================================================
-# OAuth開始
+# セキュリティメール画面
+# =========================================================
+
+@app.route(
+    "/security_email"
+)
+def security_email():
+
+    user = require_user()
+
+    if not user:
+
+        return redirect("/")
+
+    profile, _ = ensure_profile(user)
+
+    return render_template(
+        "security_email.html",
+        username=profile.get(
+            "username",
+            ""
+        ),
+        email=profile.get(
+            "email",
+            ""
+        ),
+        email_is_placeholder=
+            is_placeholder_email(
+                profile.get("email")
+            )
+    )
+
+
+# =========================================================
+# セキュリティメール登録
 #
-# Google / GitHub / Microsoft
+# 本物のメールアドレスを追加する。
+# =========================================================
+
+@app.route(
+    "/security_email",
+    methods=["POST"]
+)
+def save_security_email():
+
+    user = require_user()
+
+    if not user:
+
+        return redirect("/")
+
+    email = str(
+        request.form.get(
+            "email",
+            ""
+        )
+    ).strip().lower()
+
+    if not email:
+
+        return (
+            "メールアドレスを入力してください"
+        ), 400
+
+    if "@" not in email:
+
+        return (
+            "正しいメールアドレスを入力してください"
+        ), 400
+
+    try:
+
+        user_id = str(user.id)
+
+        # -------------------------------------------------
+        # Auth側のメールを更新
+        #
+        # Admin APIなのでサーバー側のみで実行。
+        # -------------------------------------------------
+
+        admin_auth.update_user_by_id(
+            user_id,
+            {
+                "email": email,
+                "email_confirm": False
+            }
+        )
+
+        # -------------------------------------------------
+        # profiles側も更新
+        # -------------------------------------------------
+
+        (
+            db
+            .table("profiles")
+            .update(
+                {
+                    "email": email
+                }
+            )
+            .eq(
+                "id",
+                user_id
+            )
+            .execute()
+        )
+
+        session["security_email_added"] = True
+
+        return redirect(
+            url_for("terms")
+        )
+
+    except Exception as e:
+
+        print(
+            "security email error:",
+            repr(e)
+        )
+
+        return (
+            "メールアドレスの登録に失敗しました: "
+            + str(e)
+        ), 400
+
+
+# =========================================================
+# セキュリティメールをスキップ
+# =========================================================
+
+@app.route(
+    "/skip_security_email",
+    methods=["GET", "POST"]
+)
+def skip_security_email():
+
+    user = require_user()
+
+    if not user:
+
+        return redirect("/")
+
+    session["security_email_skipped"] = True
+
+    return redirect(
+        url_for("terms")
+    )
+
+
+# =========================================================
+# OAuth開始
 # =========================================================
 
 @app.route(
@@ -951,6 +1203,16 @@ def oauth_callback():
                 "認証セッションを取得できませんでした"
             ), 500
 
+        session["access_token"] = (
+            auth_session.access_token
+        )
+
+        session["refresh_token"] = (
+            auth_session.refresh_token
+        )
+
+        session.modified = True
+
         if not user:
 
             user_response = (
@@ -969,141 +1231,17 @@ def oauth_callback():
                 "ユーザー情報を取得できませんでした"
             ), 500
 
-        user_id = str(
-            user.id
-        )
-
         profile = get_profile(
-            user_id
+            str(user.id)
         )
 
-        # -------------------------------------------------
-        # 既存プロフィール
-        # -------------------------------------------------
+        newly_created = profile is None
 
-        if profile:
+        ensure_profile(user)
 
-            # OAuthメールがあるなら保存
-            oauth_email = getattr(
-                user,
-                "email",
-                None
-            )
-
-            if (
-                oauth_email
-                and not profile.get("email")
-            ):
-
-                (
-                    db
-                    .table("profiles")
-                    .update(
-                        {
-                            "email":
-                                oauth_email
-                        }
-                    )
-                    .eq(
-                        "id",
-                        user_id
-                    )
-                    .execute()
-                )
-
-            session.clear()
-
-            session["user_id"] = user_id
-            session.modified = True
-
-            return redirect("/")
-
-        # -------------------------------------------------
-        # 新しいOAuthユーザー
-        # -------------------------------------------------
-
-        metadata = (
-            getattr(
-                user,
-                "user_metadata",
-                None
-            )
-            or {}
-        )
-
-        username = (
-            metadata.get("user_name")
-            or metadata.get(
-                "preferred_username"
-            )
-            or metadata.get("name")
-            or (
-                user.email.split("@")[0]
-                if getattr(
-                    user,
-                    "email",
-                    None
-                )
-                else "User"
-            )
-        )
-
-        username = str(
-            username
-        )[:100]
-
-        existing = (
-            db
-            .table("profiles")
-            .select("id")
-            .eq(
-                "username",
-                username
-            )
-            .execute()
-        )
-
-        if existing.data:
-
-            username = (
-                username
-                + "_"
-                + user_id[:8]
-            )
-
-        (
-            db
-            .table("profiles")
-            .insert(
-                {
-                    "id": user_id,
-                    "username": username,
-                    "email":
-                        getattr(
-                            user,
-                            "email",
-                            None
-                        ),
-                    "password_hash": None,
-                    "tutorial_completed":
-                        False
-                }
-            )
-            .execute()
-        )
-
-        session.clear()
-
-        session["user_id"] = user_id
-        session["new_registration"] = True
-        session["terms_accepted"] = False
-
-        session.modified = True
-
-        return redirect(
-            url_for(
-                "security_email"
-            )
+        return redirect_after_auth(
+            user,
+            newly_created=newly_created
         )
 
     except Exception as e:
@@ -1114,138 +1252,8 @@ def oauth_callback():
         )
 
         return (
-            "OAuthログイン処理でエラーが発生しました: "
-            + str(e)
+            "OAuthログイン処理でエラーが発生しました"
         ), 500
-
-
-# =========================================================
-# セキュリティ用メール追加ページ
-# =========================================================
-
-@app.route(
-    "/security_email"
-)
-def security_email():
-
-    user = require_user()
-
-    if not user:
-
-        return redirect("/")
-
-    return render_template(
-        "security_email.html",
-        email=user.get(
-            "email"
-        )
-    )
-
-
-# =========================================================
-# セキュリティ用メール保存
-# =========================================================
-
-@app.route(
-    "/security_email",
-    methods=["POST"]
-)
-def save_security_email():
-
-    user = require_user()
-
-    if not user:
-
-        return redirect("/")
-
-    email = str(
-        request.form.get(
-            "email",
-            ""
-        )
-    ).strip()
-
-    # -----------------------------------------------------
-    # 空欄
-    # -----------------------------------------------------
-
-    if not email:
-
-        return redirect(
-            url_for(
-                "security_email"
-            )
-        )
-
-    # -----------------------------------------------------
-    # 簡易メール形式チェック
-    # -----------------------------------------------------
-
-    if (
-        "@" not in email
-        or "." not in email.split("@")[-1]
-    ):
-
-        return (
-            "正しいメールアドレスを入力してください"
-        ), 400
-
-    try:
-
-        (
-            db
-            .table("profiles")
-            .update(
-                {
-                    "email": email
-                }
-            )
-            .eq(
-                "id",
-                str(user["id"])
-            )
-            .execute()
-        )
-
-        return redirect(
-            url_for(
-                "terms"
-            )
-        )
-
-    except Exception as e:
-
-        print(
-            "save security email error:",
-            repr(e)
-        )
-
-        return (
-            "メールアドレスの保存に失敗しました"
-        ), 500
-
-
-# =========================================================
-# セキュリティ用メールをスキップ
-# =========================================================
-
-@app.route(
-    "/skip_security_email",
-    methods=["GET", "POST"]
-)
-def skip_security_email():
-
-    user = require_user()
-
-    if not user:
-
-        return redirect("/")
-
-    return redirect(
-        url_for(
-            "terms"
-        )
-    )
 
 
 # =========================================================
@@ -1263,7 +1271,7 @@ def terms():
 
         return redirect("/")
 
-    profile = user
+    profile, _ = ensure_profile(user)
 
     if profile.get(
         "tutorial_completed",
@@ -1294,12 +1302,9 @@ def accept_terms():
         return redirect("/")
 
     session["terms_accepted"] = True
-    session.modified = True
 
     return redirect(
-        url_for(
-            "tutorial"
-        )
+        url_for("tutorial")
     )
 
 
@@ -1318,7 +1323,9 @@ def tutorial():
 
         return redirect("/")
 
-    if user.get(
+    profile, _ = ensure_profile(user)
+
+    if profile.get(
         "tutorial_completed",
         False
     ):
@@ -1346,25 +1353,19 @@ def complete_tutorial():
 
         return redirect("/")
 
-    # -----------------------------------------------------
-    # 新規登録の場合は契約同意が必要
-    # -----------------------------------------------------
-
     if (
-        session.get(
-            "new_registration",
+        not session.get(
+            "terms_accepted",
             False
         )
-        and not session.get(
-            "terms_accepted",
+        and session.get(
+            "new_registration",
             False
         )
     ):
 
         return redirect(
-            url_for(
-                "terms"
-            )
+            url_for("terms")
         )
 
     (
@@ -1372,13 +1373,12 @@ def complete_tutorial():
         .table("profiles")
         .update(
             {
-                "tutorial_completed":
-                    True
+                "tutorial_completed": True
             }
         )
         .eq(
             "id",
-            str(user["id"])
+            str(user.id)
         )
         .execute()
     )
@@ -1393,7 +1393,15 @@ def complete_tutorial():
         None
     )
 
-    session.modified = True
+    session.pop(
+        "security_email_added",
+        None
+    )
+
+    session.pop(
+        "security_email_skipped",
+        None
+    )
 
     return redirect("/")
 
@@ -1407,8 +1415,6 @@ def complete_tutorial():
 )
 def logout():
 
-    # OAuthセッションがある場合だけ
-    # Supabase側もログアウト
     try:
 
         auth_client = get_auth_client()
@@ -1418,7 +1424,7 @@ def logout():
     except Exception as e:
 
         print(
-            "logout auth error:",
+            "logout error:",
             repr(e)
         )
 
@@ -1449,7 +1455,7 @@ def call(room_code):
 
 
 # =========================================================
-# room_code → room
+# room_code → UUID
 # =========================================================
 
 def get_room_by_code(room_code):
@@ -1468,6 +1474,7 @@ def get_room_by_code(room_code):
     )
 
     if not result.data:
+
         return None
 
     return result.data[0]
@@ -1529,22 +1536,14 @@ def save_note():
     data = request.get_json() or {}
 
     room_code = str(
-        data.get(
-            "room",
-            ""
-        )
+        data.get("room", "")
     )
 
     note = str(
-        data.get(
-            "note",
-            ""
-        )
+        data.get("note", "")
     )
 
-    room = get_room_by_code(
-        room_code
-    )
+    room = get_room_by_code(room_code)
 
     if not room:
 
@@ -1570,7 +1569,7 @@ def save_note():
         )
         .eq(
             "user_id",
-            str(user["id"])
+            str(user.id)
         )
         .execute()
     )
@@ -1605,15 +1604,10 @@ def delete_room():
     data = request.get_json() or {}
 
     room_code = str(
-        data.get(
-            "room",
-            ""
-        )
+        data.get("room", "")
     )
 
-    room = get_room_by_code(
-        room_code
-    )
+    room = get_room_by_code(room_code)
 
     if not room:
 
@@ -1635,7 +1629,7 @@ def delete_room():
         )
         .eq(
             "user_id",
-            str(user["id"])
+            str(user.id)
         )
         .execute()
     )
@@ -1672,29 +1666,18 @@ def set_room_password():
     data = request.get_json() or {}
 
     room_code = str(
-        data.get(
-            "room",
-            ""
-        )
+        data.get("room", "")
     )
 
     enabled = bool(
-        data.get(
-            "enabled",
-            False
-        )
+        data.get("enabled", False)
     )
 
     new_password = str(
-        data.get(
-            "password",
-            ""
-        )
+        data.get("password", "")
     )
 
-    room = get_room_by_code(
-        room_code
-    )
+    room = get_room_by_code(room_code)
 
     if not room:
 
@@ -1706,9 +1689,7 @@ def set_room_password():
             }
         ), 404
 
-    room_uuid = str(
-        room["id"]
-    )
+    room_uuid = str(room["id"])
 
     settings_result = (
         db
@@ -1737,13 +1718,9 @@ def set_room_password():
             "password_changed_at": None
         }
 
-    old_password_hash = settings.get(
-        "password_hash"
+    old_password_hash = (
+        settings.get("password_hash")
     )
-
-    # -----------------------------------------------------
-    # OFF
-    # -----------------------------------------------------
 
     if not enabled:
 
@@ -1773,10 +1750,6 @@ def set_room_password():
             }
         )
 
-    # -----------------------------------------------------
-    # 既存パスワード再利用
-    # -----------------------------------------------------
-
     if old_password_hash:
 
         (
@@ -1804,10 +1777,6 @@ def set_room_password():
                 "password_changed": False
             }
         )
-
-    # -----------------------------------------------------
-    # 初回設定
-    # -----------------------------------------------------
 
     if not new_password:
 
@@ -1877,17 +1846,11 @@ def change_room_password():
     data = request.get_json() or {}
 
     room_code = str(
-        data.get(
-            "room",
-            ""
-        )
+        data.get("room", "")
     )
 
     new_password = str(
-        data.get(
-            "password",
-            ""
-        )
+        data.get("password", "")
     )
 
     if not new_password:
@@ -1900,9 +1863,7 @@ def change_room_password():
             }
         ), 400
 
-    room = get_room_by_code(
-        room_code
-    )
+    room = get_room_by_code(room_code)
 
     if not room:
 
@@ -1914,9 +1875,7 @@ def change_room_password():
             }
         ), 404
 
-    room_uuid = str(
-        room["id"]
-    )
+    room_uuid = str(room["id"])
 
     result = (
         db
@@ -1943,9 +1902,7 @@ def change_room_password():
 
     changed_at = (
         result.data[0]
-        .get(
-            "password_changed_at"
-        )
+        .get("password_changed_at")
     )
 
     if changed_at:
@@ -2047,22 +2004,14 @@ def check_room_password():
     data = request.get_json() or {}
 
     room_code = str(
-        data.get(
-            "room",
-            ""
-        )
+        data.get("room", "")
     )
 
     password = str(
-        data.get(
-            "password",
-            ""
-        )
+        data.get("password", "")
     )
 
-    room = get_room_by_code(
-        room_code
-    )
+    room = get_room_by_code(room_code)
 
     if not room:
 
@@ -2072,13 +2021,8 @@ def check_room_password():
             }
         )
 
-    room_uuid = str(
-        room["id"]
-    )
-
-    user_id = str(
-        user["id"]
-    )
+    room_uuid = str(room["id"])
+    user_id = str(user.id)
 
     member_result = (
         db
@@ -2135,9 +2079,7 @@ def check_room_password():
     )
 
     password_hash = (
-        settings.get(
-            "password_hash"
-        )
+        settings.get("password_hash")
     )
 
     if not enabled:
@@ -2188,9 +2130,7 @@ def create_room():
     if not user:
         return
 
-    user_id = str(
-        user["id"]
-    )
+    user_id = str(user.id)
 
     room_code = generate_room_code()
 
@@ -2199,10 +2139,8 @@ def create_room():
         .table("rooms")
         .insert(
             {
-                "room_code":
-                    room_code,
-                "created_by":
-                    user_id
+                "room_code": room_code,
+                "created_by": user_id
             }
         )
         .execute()
@@ -2222,53 +2160,35 @@ def create_room():
 
     room = result.data[0]
 
-    room_uuid = str(
-        room["id"]
-    )
+    room_uuid = str(room["id"])
 
-    (
-        db
-        .table("room_settings")
-        .insert(
-            {
-                "room_id":
-                    room_uuid,
-                "password_enabled":
-                    False,
-                "password_hash":
-                    None,
-                "password_changed_at":
-                    None
-            }
-        )
-        .execute()
-    )
+    db.table(
+        "room_settings"
+    ).insert(
+        {
+            "room_id": room_uuid,
+            "password_enabled": False,
+            "password_hash": None,
+            "password_changed_at": None
+        }
+    ).execute()
 
-    (
-        db
-        .table("room_members")
-        .insert(
-            {
-                "room_id":
-                    room_uuid,
-                "user_id":
-                    user_id,
-                "note":
-                    ""
-            }
-        )
-        .execute()
-    )
+    db.table(
+        "room_members"
+    ).insert(
+        {
+            "room_id": room_uuid,
+            "user_id": user_id,
+            "note": ""
+        }
+    ).execute()
 
-    join_room(
-        room_code
-    )
+    join_room(room_code)
 
     emit(
         "room_created",
         {
-            "room":
-                room_code
+            "room": room_code
         }
     )
 
@@ -2288,15 +2208,10 @@ def join_room_by_id(data):
         return
 
     room_code = str(
-        data.get(
-            "room",
-            ""
-        )
+        data.get("room", "")
     )
 
-    user_id = str(
-        user["id"]
-    )
+    user_id = str(user.id)
 
     if (
         not room_code.isdigit()
@@ -2313,9 +2228,7 @@ def join_room_by_id(data):
 
         return
 
-    room = get_room_by_code(
-        room_code
-    )
+    room = get_room_by_code(room_code)
 
     if not room:
 
@@ -2329,9 +2242,7 @@ def join_room_by_id(data):
 
         return
 
-    room_uuid = str(
-        room["id"]
-    )
+    room_uuid = str(room["id"])
 
     member_result = (
         db
@@ -2350,31 +2261,22 @@ def join_room_by_id(data):
 
     if not member_result.data:
 
-        (
-            db
-            .table("room_members")
-            .insert(
-                {
-                    "room_id":
-                        room_uuid,
-                    "user_id":
-                        user_id,
-                    "note":
-                        ""
-                }
-            )
-            .execute()
-        )
+        db.table(
+            "room_members"
+        ).insert(
+            {
+                "room_id": room_uuid,
+                "user_id": user_id,
+                "note": ""
+            }
+        ).execute()
 
-    join_room(
-        room_code
-    )
+    join_room(room_code)
 
     emit(
         "joined",
         {
-            "room":
-                room_code
+            "room": room_code
         }
     )
 
@@ -2388,9 +2290,7 @@ def join_room_by_id(data):
             "room_id",
             room_uuid
         )
-        .order(
-            "id"
-        )
+        .order("id")
         .execute()
     )
 
@@ -2433,15 +2333,10 @@ def join_room_by_id(data):
 def leave(data):
 
     room_code = str(
-        data.get(
-            "room",
-            ""
-        )
+        data.get("room", "")
     )
 
-    leave_room(
-        room_code
-    )
+    leave_room(room_code)
 
 
 # =========================================================
@@ -2459,36 +2354,23 @@ def handle_message(data):
         return
 
     room_code = str(
-        data.get(
-            "room",
-            ""
-        )
+        data.get("room", "")
     )
 
     message = str(
-        data.get(
-            "message",
-            ""
-        )
+        data.get("message", "")
     ).strip()
 
     if not message:
         return
 
-    room = get_room_by_code(
-        room_code
-    )
+    room = get_room_by_code(room_code)
 
     if not room:
         return
 
-    room_uuid = str(
-        room["id"]
-    )
-
-    user_id = str(
-        user["id"]
-    )
+    room_uuid = str(room["id"])
+    user_id = str(user.id)
 
     member_result = (
         db
@@ -2508,27 +2390,23 @@ def handle_message(data):
     if not member_result.data:
         return
 
-    (
-        db
-        .table("messages")
-        .insert(
-            {
-                "room_id":
-                    room_uuid,
-                "user_id":
-                    user_id,
-                "message":
-                    message
-            }
-        )
-        .execute()
-    )
+    db.table(
+        "messages"
+    ).insert(
+        {
+            "room_id": room_uuid,
+            "user_id": user_id,
+            "message": message
+        }
+    ).execute()
+
+    profile, _ = ensure_profile(user)
 
     emit(
         "chat_message",
         {
             "username":
-                user["username"],
+                profile["username"],
             "message":
                 message
         },
@@ -2551,17 +2429,16 @@ def call_started(data):
         return
 
     room = str(
-        data.get(
-            "room",
-            ""
-        )
+        data.get("room", "")
     )
+
+    profile, _ = ensure_profile(user)
 
     socketio.emit(
         "call_notification",
         {
             "username":
-                user["username"],
+                profile["username"],
             "room":
                 room
         },
@@ -2584,17 +2461,16 @@ def call_ended(data):
         return
 
     room = str(
-        data.get(
-            "room",
-            ""
-        )
+        data.get("room", "")
     )
+
+    profile, _ = ensure_profile(user)
 
     socketio.emit(
         "call_end_notification",
         {
             "username":
-                user["username"]
+                profile["username"]
         },
         room=room
     )
@@ -2614,14 +2490,13 @@ def add_creator_log(data):
     if not user:
         return
 
-    if user["username"] != "開発者":
+    profile, _ = ensure_profile(user)
+
+    if profile["username"] != "開発者":
         return
 
     message = str(
-        data.get(
-            "message",
-            ""
-        )
+        data.get("message", "")
     ).strip()
 
     if not message:
@@ -2633,7 +2508,7 @@ def add_creator_log(data):
         .insert(
             {
                 "user_id":
-                    str(user["id"]),
+                    str(user.id),
                 "message":
                     message
             }
@@ -2671,15 +2546,15 @@ def delete_creator_log(data):
     if not user:
         return
 
-    if user["username"] != "開発者":
+    profile, _ = ensure_profile(user)
+
+    if profile["username"] != "開発者":
         return
 
     try:
 
         log_id = int(
-            data.get(
-                "id"
-            )
+            data.get("id")
         )
 
     except Exception:
@@ -2717,19 +2592,13 @@ def health():
 
     return jsonify(
         {
-            "status":
-                "ok"
+            "status": "ok"
         }
     )
 
 
 # =========================================================
 # Main
-#
-# RenderではGunicornを使用するため、
-# 通常はこの部分は実行されません。
-#
-# ローカル起動時にもeventletは使用しません。
 # =========================================================
 
 if __name__ == "__main__":
