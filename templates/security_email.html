@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html lang="ja">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>セキュリティ設定 - Mr.Red Banana Chat</title>
+    <title>セキュリティメール - Mr.Red Banana Chat</title>
 
     <style>
         * {
@@ -16,10 +15,6 @@
             margin: 0;
             min-height: 100vh;
 
-            display: flex;
-            justify-content: center;
-            align-items: center;
-
             font-family:
                 -apple-system,
                 BlinkMacSystemFont,
@@ -27,144 +22,225 @@
                 "Noto Sans JP",
                 sans-serif;
 
-            background: #f5f5f5;
+            background: #f5f6f8;
             color: #222;
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            padding: 20px;
         }
 
         .container {
             width: 100%;
-            max-width: 430px;
-            padding: 20px;
-        }
+            max-width: 520px;
 
-        .card {
             background: white;
-            border-radius: 16px;
-            padding: 32px 28px;
+
+            border-radius: 18px;
 
             box-shadow:
-                0 4px 20px rgba(0, 0, 0, 0.08);
+                0 10px 35px rgba(0, 0, 0, 0.08);
 
+            padding: 38px;
+        }
+
+        .logo {
             text-align: center;
+
+            font-size: 26px;
+            font-weight: 700;
+
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            text-align: center;
+
+            color: #777;
+
+            font-size: 14px;
+
+            margin-bottom: 30px;
         }
 
         h1 {
-            margin: 0 0 18px;
-            font-size: 24px;
+            font-size: 23px;
+
+            margin:
+                0 0 15px;
         }
 
         .description {
-            margin-bottom: 26px;
-
-            line-height: 1.7;
-            font-size: 14px;
             color: #555;
+
+            line-height: 1.8;
+
+            font-size: 14px;
+
+            margin-bottom: 25px;
         }
 
-        .email-form {
-            margin-bottom: 22px;
+        .current-email {
+            background: #f6f6f6;
+
+            border:
+                1px solid #e1e1e1;
+
+            border-radius: 10px;
+
+            padding: 14px;
+
+            margin-bottom: 25px;
         }
 
-        input[type="email"] {
+        .current-email-title {
+            font-size: 12px;
+
+            color: #888;
+
+            margin-bottom: 6px;
+        }
+
+        .current-email-value {
+            font-size: 14px;
+
+            word-break: break-all;
+
+            font-family:
+                ui-monospace,
+                SFMono-Regular,
+                Menlo,
+                Consolas,
+                monospace;
+        }
+
+        .field {
+            margin-bottom: 18px;
+        }
+
+        .field label {
+            display: block;
+
+            font-size: 14px;
+            font-weight: 600;
+
+            margin-bottom: 7px;
+        }
+
+        .field input {
             width: 100%;
-            padding: 13px 14px;
-
-            border: 1px solid #ccc;
-            border-radius: 8px;
-
-            font-size: 15px;
-            outline: none;
-        }
-
-        input[type="email"]:focus {
-            border-color: #555;
-        }
-
-        .submit-button {
-            width: 100%;
-            margin-top: 10px;
 
             padding: 13px;
 
-            border: none;
-            border-radius: 8px;
+            border:
+                1px solid #d8d8d8;
 
-            background: #222;
-            color: white;
+            border-radius: 9px;
 
             font-size: 15px;
-            cursor: pointer;
+
+            outline: none;
+
+            transition:
+                border-color 0.2s,
+                box-shadow 0.2s;
         }
 
-        .submit-button:hover {
-            opacity: 0.9;
+        .field input:focus {
+            border-color: #111;
+
+            box-shadow:
+                0 0 0 3px
+                rgba(0, 0, 0, 0.06);
         }
 
-        .divider {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-
-            margin: 22px 0;
-
-            color: #999;
-            font-size: 12px;
-        }
-
-        .divider::before,
-        .divider::after {
-            content: "";
-            flex: 1;
-            height: 1px;
-            background: #ddd;
-        }
-
-        .oauth-button {
-            display: block;
-
+        .save-button {
             width: 100%;
-            margin-bottom: 10px;
+
+            border: none;
+
+            border-radius: 10px;
+
+            padding: 13px;
+
+            background: #111;
+            color: white;
+
+            font-size: 16px;
+            font-weight: 600;
+
+            cursor: pointer;
+
+            transition:
+                opacity 0.2s,
+                transform 0.1s;
+        }
+
+        .save-button:hover {
+            opacity: 0.85;
+        }
+
+        .save-button:active {
+            transform: scale(0.99);
+        }
+
+        .skip-area {
+            margin-top: 18px;
+        }
+
+        .skip-button {
+            width: 100%;
+
+            border:
+                1px solid #ddd;
+
+            border-radius: 10px;
+
             padding: 12px;
 
-            border: 1px solid #ccc;
-            border-radius: 8px;
-
             background: white;
-            color: #222;
+            color: #555;
 
             font-size: 14px;
-            text-decoration: none;
+            font-weight: 600;
 
             cursor: pointer;
+
+            transition:
+                background 0.2s;
         }
 
-        .oauth-button:hover {
-            background: #f7f7f7;
+        .skip-button:hover {
+            background: #f6f6f6;
         }
 
-        .skip {
-            display: inline-block;
+        .note {
+            text-align: center;
 
-            margin-top: 18px;
-
-            font-size: 12px;
             color: #888;
 
-            text-decoration: underline;
-            cursor: pointer;
+            font-size: 12px;
+
+            line-height: 1.7;
+
+            margin-top: 20px;
         }
 
-        .skip:hover {
-            color: #555;
-        }
+        @media (max-width: 600px) {
 
-        .security-note {
-            margin-top: 22px;
+            body {
+                padding: 15px;
+            }
 
-            font-size: 11px;
-            line-height: 1.6;
+            .container {
+                padding: 28px 22px;
+            }
 
-            color: #999;
+            .logo {
+                font-size: 23px;
+            }
         }
     </style>
 </head>
@@ -173,102 +249,116 @@
 
 <div class="container">
 
-    <div class="card">
+    <div class="logo">
+        Mr.Red Banana Chat
+    </div>
 
-        <h1>
-            セキュリティを強化しましょう
-        </h1>
+    <div class="subtitle">
+        アカウントのセキュリティ設定
+    </div>
 
-        <div class="description">
-            セキュリティ補強のため、<br>
-            メールアドレスを追加しましょう。
-            <br><br>
-            パスワードを忘れた場合などに、
-            アカウントを復旧できるようになります。
+
+    <h1>
+        セキュリティ用メールアドレス
+    </h1>
+
+
+    <div class="description">
+        {{ username }}さん、アカウントの安全性を高めるため、
+        メールアドレスを登録できます。
+        パスワードを忘れた場合などに役立ちます。
+    </div>
+
+
+    {% if email_is_placeholder %}
+
+        <div class="current-email">
+
+            <div class="current-email-title">
+                現在登録されているメールアドレス
+            </div>
+
+            <div class="current-email-value">
+                {{ email }}
+            </div>
+
         </div>
 
+    {% else %}
 
-        <!-- ==============================
-             メールアドレス追加
-             ============================== -->
+        <div class="current-email">
 
-        <form
-            class="email-form"
-            action="/security_email"
-            method="post"
-        >
+            <div class="current-email-title">
+                現在登録されているメールアドレス
+            </div>
+
+            <div class="current-email-value">
+                {{ email }}
+            </div>
+
+        </div>
+
+    {% endif %}
+
+
+    <form
+        method="POST"
+        action="{{ url_for('save_security_email') }}"
+    >
+
+        <div class="field">
+
+            <label for="email">
+                新しいメールアドレス
+            </label>
 
             <input
                 type="email"
+                id="email"
                 name="email"
-                placeholder="メールアドレス"
+                placeholder="example@example.com"
                 autocomplete="email"
                 required
             >
 
+        </div>
+
+
+        <button
+            type="submit"
+            class="save-button"
+        >
+            メールアドレスを登録して続ける
+        </button>
+
+    </form>
+
+
+    <div class="skip-area">
+
+        <form
+            method="POST"
+            action="{{ url_for('skip_security_email') }}"
+        >
+
             <button
                 type="submit"
-                class="submit-button"
+                class="skip-button"
             >
-                メールを追加する
+                今は登録しない
             </button>
 
         </form>
 
-
-        <div class="divider">
-            または
-        </div>
+    </div>
 
 
-        <!-- ==============================
-             OAuth
-             ============================== -->
-
-        <a
-            href="/auth/google"
-            class="oauth-button"
-        >
-            Googleで続ける
-        </a>
-
-        <a
-            href="/auth/github"
-            class="oauth-button"
-        >
-            GitHubで続ける
-        </a>
-
-        <a
-            href="/auth/azure"
-            class="oauth-button"
-        >
-            Microsoft Accountで続ける
-        </a>
-
-
-        <!-- ==============================
-             スキップ
-             ============================== -->
-
-        <a
-            href="/skip_security_email"
-            class="skip"
-        >
-            スキップする
-        </a>
-
-
-        <div class="security-note">
-            メールアドレスの追加は任意です。
-            <br>
-            後から設定することもできます。
-        </div>
-
+    <div class="note">
+        メールアドレスは後から変更できます。<br>
+        登録しなくてもMr.Red Banana Chatを利用できます。
     </div>
 
 </div>
 
 </body>
-
 </html>
