@@ -2,12 +2,9 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Mr.Red Banana 暇人チャッツ</title>
+    <title>Mr.Red Banana Chat - ログイン</title>
 
     <style>
         * {
@@ -18,15 +15,15 @@
             margin: 0;
             min-height: 100vh;
 
-            background: #f5f5f5;
-            color: #222;
-
             font-family:
                 -apple-system,
                 BlinkMacSystemFont,
                 "Segoe UI",
                 "Noto Sans JP",
                 sans-serif;
+
+            background: #f5f6f8;
+            color: #222;
 
             display: flex;
             justify-content: center;
@@ -39,24 +36,23 @@
             width: 100%;
             max-width: 430px;
 
-            background: #fff;
+            background: white;
 
-            border-radius: 20px;
-
-            padding: 35px 30px;
+            border-radius: 18px;
 
             box-shadow:
                 0 10px 35px rgba(0, 0, 0, 0.08);
+
+            padding: 35px;
         }
 
         .logo {
             text-align: center;
 
-            font-size: 30px;
+            font-size: 28px;
+            font-weight: 700;
 
-            font-weight: 800;
-
-            margin-bottom: 5px;
+            margin-bottom: 8px;
         }
 
         .subtitle {
@@ -69,10 +65,18 @@
             margin-bottom: 30px;
         }
 
+        h1 {
+            font-size: 22px;
+
+            margin:
+                0 0 20px;
+        }
+
         .tabs {
             display: flex;
 
-            border-bottom: 1px solid #ddd;
+            border-bottom:
+                1px solid #ddd;
 
             margin-bottom: 25px;
         }
@@ -80,27 +84,27 @@
         .tab {
             flex: 1;
 
-            padding: 12px 5px;
-
             border: none;
-
             background: transparent;
 
-            font-size: 15px;
+            padding: 12px 5px;
 
-            font-weight: bold;
+            font-size: 15px;
+            font-weight: 600;
 
             color: #888;
 
             cursor: pointer;
 
-            border-bottom: 2px solid transparent;
+            border-bottom:
+                2px solid transparent;
         }
 
         .tab.active {
-            color: #222;
+            color: #111;
 
-            border-bottom-color: #222;
+            border-bottom-color:
+                #111;
         }
 
         .form {
@@ -111,16 +115,6 @@
             display: block;
         }
 
-        .description {
-            margin-bottom: 20px;
-
-            font-size: 13px;
-
-            line-height: 1.7;
-
-            color: #777;
-        }
-
         .field {
             margin-bottom: 18px;
         }
@@ -128,157 +122,165 @@
         .field label {
             display: block;
 
-            margin-bottom: 7px;
-
             font-size: 14px;
-
             font-weight: 600;
+
+            margin-bottom: 7px;
         }
 
         .field input {
             width: 100%;
 
-            padding: 13px 14px;
+            padding: 12px 13px;
 
-            border: 1px solid #d7d7d7;
+            border:
+                1px solid #d8d8d8;
 
-            border-radius: 10px;
-
-            background: #fff;
+            border-radius: 9px;
 
             font-size: 15px;
 
             outline: none;
 
-            transition: border-color 0.2s;
+            transition:
+                border-color 0.2s,
+                box-shadow 0.2s;
         }
 
         .field input:focus {
-            border-color: #555;
+            border-color: #111;
+
+            box-shadow:
+                0 0 0 3px
+                rgba(0, 0, 0, 0.06);
         }
 
-        .password-wrapper {
-            position: relative;
-        }
-
-        .password-wrapper input {
-            padding-right: 70px;
-        }
-
-        .show-password {
-            position: absolute;
-
-            right: 10px;
-
-            top: 50%;
-
-            transform: translateY(-50%);
-
-            border: none;
-
-            background: transparent;
-
-            color: #777;
+        .password-note {
+            color: #888;
 
             font-size: 12px;
 
-            cursor: pointer;
-
-            padding: 5px;
+            margin-top: 5px;
         }
 
-        .button {
+        .submit-button {
             width: 100%;
 
-            padding: 14px;
-
             border: none;
 
             border-radius: 10px;
 
-            background: #222;
-
-            color: #fff;
+            padding: 13px;
 
             font-size: 16px;
+            font-weight: 600;
 
-            font-weight: bold;
+            background: #111;
+            color: white;
 
             cursor: pointer;
 
-            transition: background 0.2s;
+            transition:
+                opacity 0.2s,
+                transform 0.1s;
         }
 
-        .button:hover {
-            background: #444;
+        .submit-button:hover {
+            opacity: 0.85;
         }
 
-        .button:active {
-            transform: translateY(1px);
+        .submit-button:active {
+            transform:
+                scale(0.99);
         }
 
-        .security-note {
-            margin-top: 18px;
+        .divider {
+            display: flex;
 
-            padding: 12px;
+            align-items: center;
 
-            border-radius: 10px;
+            gap: 12px;
 
-            background: #f7f7f7;
+            margin: 25px 0;
 
-            color: #777;
+            color: #999;
 
             font-size: 12px;
-
-            line-height: 1.7;
-
-            text-align: center;
         }
 
-        .message {
-            display: none;
+        .divider::before,
+        .divider::after {
+            content: "";
 
-            margin-bottom: 15px;
+            flex: 1;
+
+            height: 1px;
+
+            background: #ddd;
+        }
+
+        .oauth-button {
+            display: flex;
+
+            justify-content: center;
+            align-items: center;
+
+            width: 100%;
 
             padding: 11px;
 
+            margin-bottom: 10px;
+
+            border:
+                1px solid #ddd;
+
             border-radius: 9px;
 
-            background: #fff1f1;
+            background: white;
 
-            color: #b00020;
+            color: #222;
 
-            font-size: 13px;
+            text-decoration: none;
 
-            line-height: 1.6;
+            font-size: 14px;
+            font-weight: 600;
+
+            transition:
+                background 0.2s;
         }
 
-        .message.show {
-            display: block;
+        .oauth-button:hover {
+            background: #f6f6f6;
         }
 
-        .password-rule {
-            margin-top: 7px;
+        .oauth-button:last-child {
+            margin-bottom: 0;
+        }
 
-            font-size: 11px;
+        .security-note {
+            text-align: center;
 
             color: #888;
 
-            line-height: 1.5;
+            font-size: 12px;
+
+            line-height: 1.6;
+
+            margin-top: 22px;
         }
 
-        @media (max-width: 480px) {
+        @media (max-width: 600px) {
 
             body {
-                padding: 10px;
+                padding: 15px;
             }
 
             .container {
-                padding: 28px 20px;
+                padding: 28px 22px;
             }
 
             .logo {
-                font-size: 25px;
+                font-size: 24px;
             }
         }
     </style>
@@ -289,17 +291,17 @@
 <div class="container">
 
     <div class="logo">
-        Mr.Red Banana
+        Mr.Red Banana Chat
     </div>
 
     <div class="subtitle">
-        暇人チャッツ
+        みんなで話せるチャットサービス
     </div>
 
 
-    <!-- =========================
+    <!-- =====================================================
          タブ
-    ========================== -->
+         ===================================================== -->
 
     <div class="tabs">
 
@@ -307,6 +309,7 @@
             type="button"
             class="tab active"
             id="loginTab"
+            onclick="showForm('login')"
         >
             ログイン
         </button>
@@ -315,6 +318,7 @@
             type="button"
             class="tab"
             id="registerTab"
+            onclick="showForm('register')"
         >
             新規登録
         </button>
@@ -322,37 +326,26 @@
     </div>
 
 
-    <!-- =========================
-         エラーメッセージ
-    ========================== -->
-
-    <div
-        class="message"
-        id="message"
-    ></div>
-
-
-    <!-- =========================
+    <!-- =====================================================
          ログイン
-    ========================== -->
+         ===================================================== -->
 
     <form
+        method="POST"
+        action="{{ url_for('login') }}"
         class="form active"
         id="loginForm"
-        action="{{ url_for('login') }}"
-        method="POST"
     >
 
-        <div class="description">
-            ユーザーネームとパスワードを入力して
-            ログインしてください。
-        </div>
-
+        <h1>
+            ログイン
+        </h1>
 
         <div class="field">
 
             <label for="loginUsername">
                 ユーザーネーム
+                またはメールアドレス
             </label>
 
             <input
@@ -361,8 +354,6 @@
                 name="username"
                 autocomplete="username"
                 required
-                maxlength="100"
-                placeholder="ユーザーネーム"
             >
 
         </div>
@@ -374,33 +365,20 @@
                 パスワード
             </label>
 
-            <div class="password-wrapper">
-
-                <input
-                    type="password"
-                    id="loginPassword"
-                    name="password"
-                    autocomplete="current-password"
-                    required
-                    placeholder="パスワード"
-                >
-
-                <button
-                    type="button"
-                    class="show-password"
-                    data-target="loginPassword"
-                >
-                    表示
-                </button>
-
-            </div>
+            <input
+                type="password"
+                id="loginPassword"
+                name="password"
+                autocomplete="current-password"
+                required
+            >
 
         </div>
 
 
         <button
             type="submit"
-            class="button"
+            class="submit-button"
         >
             ログイン
         </button>
@@ -408,22 +386,20 @@
     </form>
 
 
-    <!-- =========================
+    <!-- =====================================================
          新規登録
-    ========================== -->
+         ===================================================== -->
 
     <form
+        method="POST"
+        action="{{ url_for('register') }}"
         class="form"
         id="registerForm"
-        action="{{ url_for('register') }}"
-        method="POST"
     >
 
-        <div class="description">
-            ユーザーネームとパスワードを設定して
-            アカウントを作成します。
-        </div>
-
+        <h1>
+            新規登録
+        </h1>
 
         <div class="field">
 
@@ -436,9 +412,8 @@
                 id="registerUsername"
                 name="username"
                 autocomplete="username"
-                required
                 maxlength="100"
-                placeholder="好きなユーザーネーム"
+                required
             >
 
         </div>
@@ -450,30 +425,17 @@
                 パスワード
             </label>
 
-            <div class="password-wrapper">
+            <input
+                type="password"
+                id="registerPassword"
+                name="password"
+                autocomplete="new-password"
+                minlength="8"
+                required
+            >
 
-                <input
-                    type="password"
-                    id="registerPassword"
-                    name="password"
-                    autocomplete="new-password"
-                    required
-                    minlength="8"
-                    placeholder="8文字以上"
-                >
-
-                <button
-                    type="button"
-                    class="show-password"
-                    data-target="registerPassword"
-                >
-                    表示
-                </button>
-
-            </div>
-
-            <div class="password-rule">
-                パスワードは8文字以上にしてください。
+            <div class="password-note">
+                8文字以上で設定してください。
             </div>
 
         </div>
@@ -481,143 +443,90 @@
 
         <button
             type="submit"
-            class="button"
+            class="submit-button"
         >
-            新規登録
+            アカウントを作成
         </button>
 
-
-        <div class="security-note">
-            🔒 セキュリティ補強のため、
-            登録後にメールアドレスを追加できます。
-            <br>
-            メールアドレスの登録は任意です。
-        </div>
-
     </form>
+
+
+    <!-- =====================================================
+         OAuth
+         ===================================================== -->
+
+    <div class="divider">
+        または
+    </div>
+
+
+    <a
+        href="{{ url_for('oauth_login', provider='google') }}"
+        class="oauth-button"
+    >
+        Googleでログイン
+    </a>
+
+
+    <a
+        href="{{ url_for('oauth_login', provider='github') }}"
+        class="oauth-button"
+    >
+        GitHubでログイン
+    </a>
+
+
+    <a
+        href="{{ url_for('oauth_login', provider='azure') }}"
+        class="oauth-button"
+    >
+        Microsoftでログイン
+    </a>
+
+
+    <div class="security-note">
+        メールアドレスは新規登録時には必須ではありません。<br>
+        登録後にセキュリティ用メールアドレスを設定できます。
+    </div>
 
 </div>
 
 
 <script>
 
-    const loginTab =
-        document.getElementById("loginTab");
+    function showForm(type) {
 
-    const registerTab =
-        document.getElementById("registerTab");
+        const loginForm =
+            document.getElementById("loginForm");
 
-    const loginForm =
-        document.getElementById("loginForm");
+        const registerForm =
+            document.getElementById("registerForm");
 
-    const registerForm =
-        document.getElementById("registerForm");
+        const loginTab =
+            document.getElementById("loginTab");
 
-    const message =
-        document.getElementById("message");
-
-
-    function showLogin() {
-
-        loginTab.classList.add("active");
-        registerTab.classList.remove("active");
-
-        loginForm.classList.add("active");
-        registerForm.classList.remove("active");
-
-        message.classList.remove("show");
-    }
+        const registerTab =
+            document.getElementById("registerTab");
 
 
-    function showRegister() {
+        if (type === "login") {
 
-        loginTab.classList.remove("active");
-        registerTab.classList.add("active");
+            loginForm.classList.add("active");
+            registerForm.classList.remove("active");
 
-        loginForm.classList.remove("active");
-        registerForm.classList.add("active");
+            loginTab.classList.add("active");
+            registerTab.classList.remove("active");
 
-        message.classList.remove("show");
-    }
+        } else {
 
+            loginForm.classList.remove("active");
+            registerForm.classList.add("active");
 
-    loginTab.addEventListener(
-        "click",
-        showLogin
-    );
+            loginTab.classList.remove("active");
+            registerTab.classList.add("active");
 
+        }
 
-    registerTab.addEventListener(
-        "click",
-        showRegister
-    );
-
-
-    /*
-     * パスワード表示・非表示
-     */
-
-    document
-        .querySelectorAll(".show-password")
-        .forEach(function(button) {
-
-            button.addEventListener(
-                "click",
-                function() {
-
-                    const targetId =
-                        button.dataset.target;
-
-                    const input =
-                        document.getElementById(
-                            targetId
-                        );
-
-                    if (
-                        input.type ===
-                        "password"
-                    ) {
-
-                        input.type =
-                            "text";
-
-                        button.textContent =
-                            "非表示";
-
-                    } else {
-
-                        input.type =
-                            "password";
-
-                        button.textContent =
-                            "表示";
-                    }
-                }
-            );
-
-        });
-
-
-    /*
-     * URLにエラーが付いている場合の表示
-     */
-
-    const params =
-        new URLSearchParams(
-            window.location.search
-        );
-
-    const error =
-        params.get("error");
-
-    if (error) {
-
-        message.textContent =
-            error;
-
-        message.classList.add(
-            "show"
-        );
     }
 
 </script>
