@@ -1,18 +1,27 @@
 <!DOCTYPE html>
 <html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Mr.Red Banana Chat - ログイン</title>
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Mr.Red Banana Chat</title>
 
     <style>
+
         * {
             box-sizing: border-box;
         }
 
         body {
+
             margin: 0;
+
             min-height: 100vh;
 
             font-family:
@@ -22,40 +31,54 @@
                 "Noto Sans JP",
                 sans-serif;
 
-            background: #f5f6f8;
+            background:
+                linear-gradient(
+                    135deg,
+                    #f5f6f8,
+                    #e9ebef
+                );
+
             color: #222;
 
             display: flex;
+
             justify-content: center;
+
             align-items: center;
 
             padding: 20px;
         }
 
         .container {
+
             width: 100%;
+
             max-width: 430px;
 
             background: white;
 
-            border-radius: 18px;
+            border-radius: 20px;
 
             box-shadow:
-                0 10px 35px rgba(0, 0, 0, 0.08);
+                0 12px 40px
+                rgba(0, 0, 0, 0.10);
 
-            padding: 35px;
+            padding: 40px;
         }
 
         .logo {
+
             text-align: center;
 
             font-size: 28px;
+
             font-weight: 700;
 
             margin-bottom: 8px;
         }
 
         .subtitle {
+
             text-align: center;
 
             color: #777;
@@ -65,78 +88,79 @@
             margin-bottom: 30px;
         }
 
-        h1 {
-            font-size: 22px;
-
-            margin:
-                0 0 20px;
-        }
-
         .tabs {
+
             display: flex;
 
-            border-bottom:
-                1px solid #ddd;
-
             margin-bottom: 25px;
+
+            border-bottom: 1px solid #ddd;
         }
 
         .tab {
+
             flex: 1;
 
+            padding: 12px;
+
             border: none;
+
             background: transparent;
-
-            padding: 12px 5px;
-
-            font-size: 15px;
-            font-weight: 600;
 
             color: #888;
 
+            font-size: 15px;
+
+            font-weight: 600;
+
             cursor: pointer;
 
-            border-bottom:
-                2px solid transparent;
+            border-bottom: 2px solid transparent;
         }
 
         .tab.active {
+
             color: #111;
 
-            border-bottom-color:
-                #111;
+            border-bottom:
+                2px solid #111;
         }
 
         .form {
+
             display: none;
         }
 
         .form.active {
+
             display: block;
         }
 
         .field {
+
             margin-bottom: 18px;
         }
 
         .field label {
+
             display: block;
 
-            font-size: 14px;
-            font-weight: 600;
-
             margin-bottom: 7px;
+
+            font-size: 14px;
+
+            font-weight: 600;
         }
 
         .field input {
+
             width: 100%;
 
-            padding: 12px 13px;
+            padding: 13px 14px;
 
-            border:
-                1px solid #d8d8d8;
+            border: 1px solid #d5d5d5;
 
-            border-radius: 9px;
+            border-radius: 10px;
 
             font-size: 15px;
 
@@ -148,35 +172,66 @@
         }
 
         .field input:focus {
-            border-color: #111;
+
+            border-color: #555;
 
             box-shadow:
                 0 0 0 3px
                 rgba(0, 0, 0, 0.06);
         }
 
-        .password-note {
+        .help {
+
+            margin-top: -8px;
+
+            margin-bottom: 18px;
+
+            font-size: 13px;
+
             color: #888;
-
-            font-size: 12px;
-
-            margin-top: 5px;
         }
 
-        .submit-button {
+        .forgot {
+
+            display: block;
+
+            text-align: right;
+
+            margin-top: -8px;
+
+            margin-bottom: 20px;
+
+            color: #555;
+
+            font-size: 13px;
+
+            text-decoration: none;
+
+            cursor: pointer;
+        }
+
+        .forgot:hover {
+
+            text-decoration: underline;
+        }
+
+        .button {
+
             width: 100%;
 
             border: none;
 
             border-radius: 10px;
 
-            padding: 13px;
-
-            font-size: 16px;
-            font-weight: 600;
+            padding: 14px;
 
             background: #111;
+
             color: white;
+
+            font-size: 16px;
+
+            font-weight: 600;
 
             cursor: pointer;
 
@@ -185,106 +240,77 @@
                 transform 0.1s;
         }
 
-        .submit-button:hover {
+        .button:hover {
+
             opacity: 0.85;
         }
 
-        .submit-button:active {
-            transform:
-                scale(0.99);
+        .button:active {
+
+            transform: scale(0.99);
         }
 
-        .divider {
-            display: flex;
+        .notice {
 
-            align-items: center;
+            margin-top: 22px;
 
-            gap: 12px;
+            padding: 13px 15px;
 
-            margin: 25px 0;
+            background: #f7f7f7;
+
+            border-radius: 10px;
+
+            color: #777;
+
+            font-size: 12px;
+
+            line-height: 1.7;
+
+            text-align: center;
+        }
+
+        .optional {
+
+            font-weight: normal;
 
             color: #999;
 
             font-size: 12px;
         }
 
-        .divider::before,
-        .divider::after {
-            content: "";
+        .password-note {
 
-            flex: 1;
-
-            height: 1px;
-
-            background: #ddd;
-        }
-
-        .oauth-button {
-            display: flex;
-
-            justify-content: center;
-            align-items: center;
-
-            width: 100%;
-
-            padding: 11px;
-
-            margin-bottom: 10px;
-
-            border:
-                1px solid #ddd;
-
-            border-radius: 9px;
-
-            background: white;
-
-            color: #222;
-
-            text-decoration: none;
-
-            font-size: 14px;
-            font-weight: 600;
-
-            transition:
-                background 0.2s;
-        }
-
-        .oauth-button:hover {
-            background: #f6f6f6;
-        }
-
-        .oauth-button:last-child {
-            margin-bottom: 0;
-        }
-
-        .security-note {
-            text-align: center;
-
-            color: #888;
+            margin-top: 7px;
 
             font-size: 12px;
 
-            line-height: 1.6;
+            color: #999;
 
-            margin-top: 22px;
+            line-height: 1.5;
         }
 
         @media (max-width: 600px) {
 
             body {
+
                 padding: 15px;
             }
 
             .container {
-                padding: 28px 22px;
+
+                padding: 30px 22px;
             }
 
             .logo {
+
                 font-size: 24px;
             }
         }
+
     </style>
+
 </head>
+
 
 <body>
 
@@ -295,13 +321,13 @@
     </div>
 
     <div class="subtitle">
-        みんなで話せるチャットサービス
+        みんなで話せるオンラインチャット
     </div>
 
 
-    <!-- =====================================================
-         タブ
-         ===================================================== -->
+    <!-- ========================================= -->
+    <!-- タブ -->
+    <!-- ========================================= -->
 
     <div class="tabs">
 
@@ -326,26 +352,21 @@
     </div>
 
 
-    <!-- =====================================================
-         ログイン
-         ===================================================== -->
+    <!-- ========================================= -->
+    <!-- ログイン -->
+    <!-- ========================================= -->
 
     <form
+        id="loginForm"
+        class="form active"
         method="POST"
         action="{{ url_for('login') }}"
-        class="form active"
-        id="loginForm"
     >
-
-        <h1>
-            ログイン
-        </h1>
 
         <div class="field">
 
             <label for="loginUsername">
                 ユーザーネーム
-                またはメールアドレス
             </label>
 
             <input
@@ -376,9 +397,17 @@
         </div>
 
 
+        <a
+            href="{{ url_for('forgot_password') }}"
+            class="forgot"
+        >
+            パスワードを忘れた場合
+        </a>
+
+
         <button
             type="submit"
-            class="submit-button"
+            class="button"
         >
             ログイン
         </button>
@@ -386,20 +415,16 @@
     </form>
 
 
-    <!-- =====================================================
-         新規登録
-         ===================================================== -->
+    <!-- ========================================= -->
+    <!-- 新規登録 -->
+    <!-- ========================================= -->
 
     <form
+        id="registerForm"
+        class="form"
         method="POST"
         action="{{ url_for('register') }}"
-        class="form"
-        id="registerForm"
     >
-
-        <h1>
-            新規登録
-        </h1>
 
         <div class="field">
 
@@ -441,9 +466,42 @@
         </div>
 
 
+        <div class="field">
+
+            <label for="registerEmail">
+
+                メールアドレス
+
+                <span class="optional">
+                    （任意）
+                </span>
+
+            </label>
+
+            <input
+                type="email"
+                id="registerEmail"
+                name="email"
+                autocomplete="email"
+                placeholder="example@example.com"
+            >
+
+        </div>
+
+
+        <div class="help">
+
+            メールアドレスは任意です。<br>
+
+            登録すると、パスワードを忘れたときに
+            再設定メールを受け取れます。
+
+        </div>
+
+
         <button
             type="submit"
-            class="submit-button"
+            class="button"
         >
             アカウントを作成
         </button>
@@ -451,42 +509,15 @@
     </form>
 
 
-    <!-- =====================================================
-         OAuth
-         ===================================================== -->
+    <!-- ========================================= -->
+    <!-- 注意 -->
+    <!-- ========================================= -->
 
-    <div class="divider">
-        または
-    </div>
+    <div class="notice">
 
+        メールアドレスを登録しなくても
+        Mr.Red Banana Chatを利用できます。
 
-    <a
-        href="{{ url_for('oauth_login', provider='google') }}"
-        class="oauth-button"
-    >
-        Googleでログイン
-    </a>
-
-
-    <a
-        href="{{ url_for('oauth_login', provider='github') }}"
-        class="oauth-button"
-    >
-        GitHubでログイン
-    </a>
-
-
-    <a
-        href="{{ url_for('oauth_login', provider='azure') }}"
-        class="oauth-button"
-    >
-        Microsoftでログイン
-    </a>
-
-
-    <div class="security-note">
-        メールアドレスは新規登録時には必須ではありません。<br>
-        登録後にセキュリティ用メールアドレスを設定できます。
     </div>
 
 </div>
@@ -497,33 +528,61 @@
     function showForm(type) {
 
         const loginForm =
-            document.getElementById("loginForm");
+            document.getElementById(
+                "loginForm"
+            );
 
         const registerForm =
-            document.getElementById("registerForm");
+            document.getElementById(
+                "registerForm"
+            );
 
         const loginTab =
-            document.getElementById("loginTab");
+            document.getElementById(
+                "loginTab"
+            );
 
         const registerTab =
-            document.getElementById("registerTab");
+            document.getElementById(
+                "registerTab"
+            );
 
 
         if (type === "login") {
 
-            loginForm.classList.add("active");
-            registerForm.classList.remove("active");
+            loginForm.classList.add(
+                "active"
+            );
 
-            loginTab.classList.add("active");
-            registerTab.classList.remove("active");
+            registerForm.classList.remove(
+                "active"
+            );
+
+            loginTab.classList.add(
+                "active"
+            );
+
+            registerTab.classList.remove(
+                "active"
+            );
 
         } else {
 
-            loginForm.classList.remove("active");
-            registerForm.classList.add("active");
+            loginForm.classList.remove(
+                "active"
+            );
 
-            loginTab.classList.remove("active");
-            registerTab.classList.add("active");
+            registerForm.classList.add(
+                "active"
+            );
+
+            loginTab.classList.remove(
+                "active"
+            );
+
+            registerTab.classList.add(
+                "active"
+            );
 
         }
 
@@ -532,4 +591,5 @@
 </script>
 
 </body>
+
 </html>
