@@ -1,3 +1,6 @@
+# `templates/index.html`
+
+```html
 <!DOCTYPE html>
 <html>
 
@@ -11,6 +14,16 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0"
 >
+
+<!-- Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-7FXQNJGWQW"></script>
+<script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-7FXQNJGWQW');
+</script>
 
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
@@ -1049,4 +1062,6 @@ document
 </script>
 
 </body>
+
 </html>
+```
