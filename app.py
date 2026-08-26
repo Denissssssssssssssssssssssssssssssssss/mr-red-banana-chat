@@ -484,6 +484,13 @@ def register():
         )
     )
 
+    email = str(
+        request.form.get(
+            "email",
+            ""
+        )
+    ).strip().lower()
+
     if not username:
 
         return (
@@ -508,6 +515,12 @@ def register():
             "パスワードは8文字以上にしてください"
         ), 400
 
+    if email and "@" not in email:
+
+        return (
+            "正しいメールアドレスを入力してください"
+        ), 400
+
     try:
 
         # -------------------------------------------------
@@ -523,6 +536,24 @@ def register():
             return (
                 "そのユーザーネームは既に使用されています"
             ), 400
+
+        # -------------------------------------------------
+        # メールアドレス重複確認
+        #
+        # emailは任意。空の場合はNULLで保存します。
+        # -------------------------------------------------
+
+        if email:
+
+            existing_email = get_profile_by_email(
+                email
+            )
+
+            if existing_email:
+
+                return (
+                    "そのメールアドレスは既に使用されています"
+                ), 400
 
         # -------------------------------------------------
         # Flask側でUUID生成
@@ -545,7 +576,7 @@ def register():
         # -------------------------------------------------
         # profilesへ保存
         #
-        # emailは登録しないのでNULL
+        # emailは任意。未入力ならNULL。
         # -------------------------------------------------
 
         profile_result = (
@@ -563,7 +594,7 @@ def register():
                         password_hash,
 
                     "email":
-                        None,
+                        email or None,
 
                     "tutorial_completed":
                         False
