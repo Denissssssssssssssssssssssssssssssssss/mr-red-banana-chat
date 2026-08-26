@@ -287,8 +287,10 @@ input{
 
 <input
     id="roomInput"
-    placeholder="8桁ID"
-    maxlength="8"
+    placeholder="10桁ID"
+    maxlength="10"
+    minlength="10"
+    pattern="[0-9]{10}"
     inputmode="numeric"
 >
 
@@ -675,12 +677,12 @@ async function joinRoom(){
         .getElementById("roomInput")
         .value;
 
-    var regex=/^[0-9]{8}$/;
+    var regex=/^[0-9]{10}$/;
 
     if(!regex.test(roomId)){
 
         alert(
-            "ルームIDは半角数字8桁"
+            "ルームIDは半角数字10桁"
         );
 
         return;
